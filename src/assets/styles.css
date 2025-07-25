@@ -1,0 +1,245 @@
+/* General Styling */
+#productDetail {
+  font-family: 'Inter', sans-serif;
+}
+
+.breadcrumb-item a {
+  color: var(--bs-primary);
+  transition: color 0.2s;
+}
+
+.breadcrumb-item a:hover {
+  color: var(--bs-dark);
+}
+
+/* Product Images */
+.product-image-main {
+  border-radius: 20px;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.product-image-main:hover {
+  transform: scale(1.03);
+}
+
+.product-thumbnail-container {
+  border-radius: 12px;
+  overflow: hidden;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: border-color 0.3s ease;
+}
+
+.product-thumbnail {
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.product-thumbnail-container:hover .product-thumbnail {
+  transform: scale(1.1);
+}
+
+.product-thumbnail-container .active {
+  border-color: var(--bs-primary);
+}
+
+/* Product Info */
+.feature-badge {
+  background-color: #e9ecef;
+  color: #495057;
+  padding: 0.4rem 0.8rem;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  margin-right: 0.5rem;
+  display: inline-block;
+  margin-bottom: 0.5rem;
+}
+
+.discount-badge {
+  background: linear-gradient(45deg, #dc3545, #ff7851);
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-weight: 700;
+  display: inline-block;
+  margin-bottom: 0.5rem;
+}
+
+.original-price {
+  font-size: 1.2rem;
+  text-decoration: line-through;
+  color: #6c757d;
+  margin-right: 1rem;
+}
+
+.detail-price {
+  font-size: 2.2rem;
+  font-weight: 700;
+  color: var(--bs-primary);
+}
+
+.stock-info {
+  background-color: #f8f9fa;
+  border-radius: 12px;
+  padding: 1.5rem;
+}
+
+/* Quantity Selector */
+.quantity-selector {
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.quantity-btn {
+  background-color: #f8f9fa;
+  border: none;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.quantity-btn:hover {
+  background-color: #e9ecef;
+}
+
+.quantity-input {
+  text-align: center;
+  border: none;
+  box-shadow: none;
+  width: 60px;
+}
+
+/* Action Buttons */
+.add-to-cart-btn {
+  background: linear-gradient(45deg, #0d6efd, #0dcaf0);
+  border: none;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.buy-now-btn {
+  background: linear-gradient(45deg, #198754, #20c997);
+  border: none;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.add-to-cart-btn:hover, .buy-now-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+/* Delivery Info */
+.delivery-info {
+  background-color: #e6f9f0;
+  border-radius: 12px;
+  border: 1px solid #a3e9c3;
+}
+
+/* Product Tabs */
+.product-tabs .nav-link {
+  color: #495057;
+  font-weight: 600;
+  padding: 0.75rem 1.5rem;
+  border-radius: 30px;
+  transition: all 0.3s ease;
+  border: 2px solid transparent;
+}
+
+.product-tabs .nav-link.active {
+  background-color: var(--bs-primary);
+  color: white;
+  border-color: var(--bs-primary);
+  box-shadow: 0 4px 15px rgba(13, 110, 253, 0.2);
+}
+
+.tab-content {
+  padding: 2rem;
+  background-color: #ffffff;
+  border-radius: 20px;
+}
+
+.tab-pane {
+  animation: fadeIn 0.5s;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Nutrition Card */
+.nutrition-card {
+  transition: transform 0.3s, box-shadow 0.3s;
+}
+
+.nutrition-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
+}
+
+/* Review Card */
+.review-card {
+  background-color: #f8f9fa;
+  border-radius: 15px;
+  border: 1px solid #e9ecef;
+  transition: box-shadow 0.3s;
+}
+
+.review-card:hover {
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.07);
+}
+
+/* Section Title */
+.section-title {
+  position: relative;
+  padding-bottom: 1rem;
+}
+
+.section-title::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 80px;
+  height: 4px;
+  background: linear-gradient(90deg, var(--bs-primary), var(--bs-info));
+  border-radius: 2px;
+}
+
+/* Shadow utility */
+.shadow-product {
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
+}
+
+.animate-fade-in {
+  animation: fadeInUp 0.8s ease-out;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+/* ==================== HEADER BODY SPACING ==================== */
+/* Add spacing between fixed header and body content */
+.router-view-container {
+  padding-top: 150px; /* Account for full header height + extra spacing */
+  position: relative;
+  z-index: 1;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .router-view-container {
+    padding-top: 110px; /* Smaller header on mobile + extra spacing */
+  }
+}
