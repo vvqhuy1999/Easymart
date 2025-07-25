@@ -51,6 +51,24 @@ const routes = [
     }
   },
   {
+    path: '/search',
+    name: 'Search',
+    component: () => import('../views/Search.vue'),
+    meta: {
+      title: 'Tìm kiếm sản phẩm - EasyMart',
+      description: 'Tìm kiếm và khám phá hàng nghìn sản phẩm chất lượng tại EasyMart'
+    }
+  },
+  {
+    path: '/categories',
+    name: 'Categories',
+    component: () => import('../views/Categories.vue'),
+    meta: {
+      title: 'Danh mục sản phẩm - EasyMart',
+      description: 'Khám phá tất cả danh mục sản phẩm tại EasyMart'
+    }
+  },
+  {
     path: '/category/:id',
     name: 'Category',
     component: () => import('../views/Category.vue'),
@@ -58,15 +76,6 @@ const routes = [
     meta: {
       title: 'Danh mục sản phẩm - EasyMart',
       description: 'Xem tất cả sản phẩm trong danh mục'
-    }
-  },
-  {
-    path: '/search',
-    name: 'Search',
-    component: () => import('../views/Search.vue'),
-    meta: {
-      title: 'Tìm kiếm - EasyMart',
-      description: 'Kết quả tìm kiếm sản phẩm'
     }
   },
   {

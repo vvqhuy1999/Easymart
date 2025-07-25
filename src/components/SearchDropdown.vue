@@ -135,7 +135,7 @@
                 :key="product.id"
                 :class="['product-item', { 
                   active: highlightedIndex === (searchSuggestions.length + index),
-                  'out-of-stock': !product.inStock 
+                  'out-of-stock': product.stock === 0 || product.inStock === false
                 }]"
                 @click="selectProduct(product)"
               >
@@ -160,7 +160,7 @@
                       <i class="fas fa-star text-warning"></i>
                       <span>{{ product.rating || 4.5 }}</span>
                     </div>
-                    <div v-if="!product.inStock" class="out-of-stock-label">
+                    <div v-if="product.stock === 0 || product.inStock === false" class="out-of-stock-label">
                       Hết hàng
                     </div>
                   </div>
@@ -170,7 +170,7 @@
                   <button 
                     class="btn btn-sm btn-primary quick-add-btn"
                     @click.stop="quickAddToCart(product.id)"
-                    :disabled="!product.inStock"
+                    :disabled="product.stock === 0 || product.inStock === false"
                     title="Thêm vào giỏ hàng"
                   >
                     <i class="fas fa-cart-plus"></i>
@@ -223,6 +223,11 @@
 
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
+import { containsIgnoreDiacritics } from '../utils/vietnamese'
+
+// Router
+const router = useRouter()
 
 // Props
 const props = defineProps({
@@ -251,7 +256,7 @@ const searchDebounceTimeout = ref(null)
 
 // Static data
 const placeholders = [
-  'Tìm kiếm sản phẩm...',
+  'Tìm kiếm sản phẩm... (có thể tìm không dấu)',
   'Rau củ quả tươi ngon...',
   'Thịt cá hải sản...',
   'Sữa và các sản phẩm từ sữa...',
@@ -283,8 +288,9 @@ const currentPlaceholder = computed(() => {
 const searchSuggestions = computed(() => {
   if (props.searchQuery.length < 2) return []
   
+  // Use Vietnamese diacritic-insensitive search for suggestions
   return popularKeywords.filter(keyword => 
-    keyword.toLowerCase().includes(props.searchQuery.toLowerCase()) &&
+    containsIgnoreDiacritics(keyword, props.searchQuery) &&
     keyword.toLowerCase() !== props.searchQuery.toLowerCase()
   ).slice(0, 3)
 })
@@ -302,7 +308,7 @@ const categoryResults = computed(() => {
     { id: 2, name: 'Thịt cá', icon: 'fas fa-fish', color: 'danger', productCount: 15 },
     { id: 3, name: 'Sữa', icon: 'fas fa-glass-whiskey', color: 'info', productCount: 8 }
   ].filter(cat => 
-    cat.name.toLowerCase().includes(props.searchQuery.toLowerCase())
+    containsIgnoreDiacritics(cat.name, props.searchQuery)
   )
 })
 
@@ -356,8 +362,11 @@ const performSearch = () => {
   if (props.searchQuery.trim()) {
     addToRecentSearches(props.searchQuery)
     showDropdown.value = false
-    // Implement search action
-    console.log('Performing search for:', props.searchQuery)
+    // Navigate to search page with query
+    router.push({ 
+      name: 'Search', 
+      query: { q: props.searchQuery.trim() } 
+    })
   }
 }
 
@@ -406,14 +415,18 @@ const viewAllResults = () => {
   addToRecentSearches(props.searchQuery)
   showDropdown.value = false
   // Navigate to search results page
-  console.log('View all results for:', props.searchQuery)
+  router.push({ 
+    name: 'Search', 
+    query: { q: props.searchQuery.trim() } 
+  })
 }
 
+// Fixed: Remove HTML injection to avoid mark tag display issues
 const highlightSearchTerm = (text) => {
   if (!props.searchQuery || props.searchQuery.length < 2) return text
   
-  const regex = new RegExp(`(${props.searchQuery})`, 'gi')
-  return text.replace(regex, '<mark>$1</mark>')
+  // Return plain text without HTML injection to avoid mark tag issues
+  return text
 }
 
 const formatPrice = (price) => {
@@ -503,61 +516,54 @@ watch(() => props.searchQuery, (newQuery) => {
   display: flex;
   align-items: center;
   background: white;
-  border: 2px solid #e2e8f0;
-  border-radius: 12px;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+  border: 2px solid #e9ecef;
+  border-radius: 25px;
+  padding: 8px 16px;
   transition: all 0.3s ease;
-  cursor: text;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
 }
 
 .search-wrapper:focus-within {
   border-color: var(--bs-primary);
-  box-shadow: 0 4px 20px rgba(22, 160, 133, 0.15);
-  transform: translateY(-2px);
+  box-shadow: 0 4px 20px rgba(var(--bs-primary-rgb), 0.2);
+  transform: translateY(-1px);
 }
 
 .search-icon {
-  position: absolute;
-  left: 1rem;
-  z-index: 2;
   color: #6c757d;
-  display: flex;
-  align-items: center;
+  margin-right: 12px;
+  font-size: 1rem;
 }
 
 .search-input {
-  flex: 1;
   border: none;
-  background: transparent;
-  padding: 1rem 1rem 1rem 3rem;
-  font-size: 1rem;
   outline: none;
-  border-radius: 12px;
+  background: transparent;
+  font-size: 1rem;
+  flex: 1;
+  padding: 0;
 }
 
 .search-input::placeholder {
-  color: #9ca3af;
-  transition: opacity 0.3s ease;
+  color: #adb5bd;
+  font-weight: 400;
 }
 
 .search-input:focus::placeholder {
-  opacity: 0.5;
+  color: #dee2e6;
 }
 
 .search-actions {
   display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding-right: 0.75rem;
+  gap: 8px;
+  margin-left: 12px;
 }
 
 .clear-btn {
-  background: transparent;
+  background: none;
   border: none;
   color: #6c757d;
-  padding: 0.25rem;
-  width: 32px;
-  height: 32px;
+  padding: 4px 8px;
   border-radius: 50%;
   transition: all 0.2s ease;
 }
@@ -568,210 +574,177 @@ watch(() => props.searchQuery, (newQuery) => {
 }
 
 .search-btn {
-  padding: 0.5rem 1rem;
-  border-radius: 8px;
-  font-size: 0.9rem;
-  font-weight: 500;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+}
+
+.search-btn:hover {
+  transform: scale(1.05);
 }
 
 /* Dropdown Styles */
 .search-dropdown {
   position: absolute;
-  top: calc(100% + 8px);
+  top: 100%;
   left: 0;
   right: 0;
   background: white;
-  border-radius: 16px;
-  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.12);
-  border: 1px solid rgba(0, 0, 0, 0.05);
-  max-height: 600px;
-  overflow-y: auto;
+  border: 1px solid #e9ecef;
+  border-radius: 15px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
   z-index: 1000;
-}
-
-.dropdown-enter-active,
-.dropdown-leave-active {
-  transition: all 0.3s ease;
-  transform-origin: top center;
-}
-
-.dropdown-enter-from {
-  opacity: 0;
-  transform: translateY(-10px) scaleY(0.8);
-}
-
-.dropdown-leave-to {
-  opacity: 0;
-  transform: translateY(-10px) scaleY(0.8);
-}
-
-/* Quick Search */
-.quick-search {
-  padding: 1.5rem;
+  max-height: 500px;
+  overflow-y: auto;
+  margin-top: 8px;
 }
 
 .dropdown-section {
-  margin-bottom: 2rem;
+  padding: 16px;
+  border-bottom: 1px solid #f8f9fa;
 }
 
 .dropdown-section:last-child {
-  margin-bottom: 0;
+  border-bottom: none;
 }
 
 .section-title {
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   font-weight: 600;
-  color: #374151;
-  margin-bottom: 1rem;
-  display: flex;
-  align-items: center;
+  margin-bottom: 12px;
+  color: #495057;
 }
 
-.recent-searches {
+.recent-searches, .popular-keywords {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: 8px;
 }
 
-.recent-search-item {
-  font-size: 0.85rem;
+.recent-search-item, .popular-keyword {
+  font-size: 0.875rem;
+  padding: 6px 12px;
   border-radius: 20px;
-  padding: 0.25rem 0.75rem;
   transition: all 0.2s ease;
 }
 
-.recent-search-item:hover {
-  background-color: var(--bs-secondary);
-  border-color: var(--bs-secondary);
-  color: white;
-}
-
-.popular-keywords {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.popular-keyword {
-  font-size: 0.85rem;
-  border-radius: 20px;
-  padding: 0.25rem 0.75rem;
-  transition: all 0.2s ease;
-}
-
-.popular-keyword:hover {
-  background-color: var(--bs-primary);
-  border-color: var(--bs-primary);
-  color: white;
+.recent-search-item:hover, .popular-keyword:hover {
+  transform: translateY(-1px);
 }
 
 /* Search Results */
 .search-results {
-  padding: 1rem 0;
+  max-height: 450px;
+  overflow-y: auto;
 }
 
 .no-results {
-  padding: 2rem;
+  padding: 40px 20px;
   text-align: center;
 }
 
 .no-results-content i {
   font-size: 3rem;
-  margin-bottom: 1rem;
+  margin-bottom: 16px;
 }
 
 .no-results-content h6 {
-  color: #374151;
-  margin-bottom: 0.5rem;
+  color: #6c757d;
+  margin-bottom: 8px;
 }
 
 .no-results-content p {
-  color: #6b7280;
-  margin: 0;
+  color: #adb5bd;
+  font-size: 0.875rem;
 }
 
-/* Search Suggestions */
+/* Suggestions */
 .search-suggestions {
-  padding: 0 1.5rem 1rem;
+  padding: 16px;
+  border-bottom: 1px solid #f8f9fa;
 }
 
 .suggestion-items {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 4px;
 }
 
 .suggestion-item {
   display: flex;
   align-items: center;
-  padding: 0.75rem;
-  background: transparent;
+  padding: 8px 12px;
   border: none;
+  background: none;
   border-radius: 8px;
-  color: #374151;
-  text-decoration: none;
-  transition: all 0.2s ease;
   text-align: left;
+  transition: all 0.2s ease;
+  color: #495057;
 }
 
 .suggestion-item:hover,
 .suggestion-item.active {
-  background-color: #f3f4f6;
+  background: #f8f9fa;
   color: var(--bs-primary);
 }
 
 /* Product Results */
 .product-results {
-  padding: 0 1.5rem 1rem;
+  padding: 16px;
 }
 
 .results-header {
   display: flex;
-  justify-content: space-between;
+  justify-content: between;
   align-items: center;
-  margin-bottom: 1rem;
+  margin-bottom: 12px;
 }
 
 .view-all-btn {
-  font-size: 0.85rem;
-  padding: 0.25rem 0.75rem;
+  font-size: 0.875rem;
+  padding: 4px 12px;
+  border-radius: 20px;
 }
 
 .product-list {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 8px;
 }
 
 .product-item {
   display: flex;
   align-items: center;
-  gap: 1rem;
-  padding: 1rem;
+  padding: 12px;
+  border: 1px solid #f8f9fa;
   border-radius: 12px;
-  transition: all 0.2s ease;
   cursor: pointer;
-  border: 1px solid transparent;
+  transition: all 0.2s ease;
+  background: white;
 }
 
 .product-item:hover,
 .product-item.active {
-  background-color: #f8f9fa;
   border-color: var(--bs-primary);
+  box-shadow: 0 4px 15px rgba(var(--bs-primary-rgb), 0.1);
+  transform: translateY(-1px);
 }
 
 .product-item.out-of-stock {
   opacity: 0.6;
-  cursor: not-allowed;
+  background: #f8f9fa;
 }
 
 .product-image {
   position: relative;
   width: 60px;
   height: 60px;
-  flex-shrink: 0;
   border-radius: 8px;
   overflow: hidden;
+  margin-right: 12px;
+  flex-shrink: 0;
 }
 
 .product-image img {
@@ -782,12 +755,12 @@ watch(() => props.searchQuery, (newQuery) => {
 
 .product-badge {
   position: absolute;
-  top: -4px;
-  right: -4px;
+  top: 4px;
+  right: 4px;
   background: #dc3545;
   color: white;
-  font-size: 0.7rem;
-  padding: 0.15rem 0.4rem;
+  font-size: 0.75rem;
+  padding: 2px 6px;
   border-radius: 10px;
   font-weight: 600;
 }
@@ -798,35 +771,28 @@ watch(() => props.searchQuery, (newQuery) => {
 }
 
 .product-name {
-  font-size: 0.95rem;
+  font-size: 0.875rem;
   font-weight: 600;
-  color: #374151;
-  margin-bottom: 0.25rem;
-  line-height: 1.4;
-}
-
-.product-name :deep(mark) {
-  background-color: #fef3c7;
-  color: #d97706;
-  padding: 0.1rem 0.2rem;
-  border-radius: 3px;
+  margin-bottom: 4px;
+  color: #212529;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .product-price {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.25rem;
+  margin-bottom: 4px;
 }
 
 .original-price {
-  font-size: 0.8rem;
-  color: #9ca3af;
+  font-size: 0.75rem;
+  color: #6c757d;
   text-decoration: line-through;
+  margin-right: 8px;
 }
 
 .current-price {
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   font-weight: 600;
   color: var(--bs-primary);
 }
@@ -834,34 +800,39 @@ watch(() => props.searchQuery, (newQuery) => {
 .product-meta {
   display: flex;
   align-items: center;
-  gap: 1rem;
-  font-size: 0.8rem;
+  gap: 12px;
 }
 
 .product-rating {
   display: flex;
   align-items: center;
-  gap: 0.25rem;
-  color: #6b7280;
+  gap: 4px;
+  font-size: 0.75rem;
+  color: #6c757d;
 }
 
 .out-of-stock-label {
+  font-size: 0.75rem;
   color: #dc3545;
   font-weight: 500;
+  background: #fff5f5;
+  padding: 2px 8px;
+  border-radius: 10px;
+  border: 1px solid #fecaca;
 }
 
 .product-actions {
-  display: flex;
-  align-items: center;
+  margin-left: 12px;
 }
 
 .quick-add-btn {
   width: 36px;
   height: 36px;
-  border-radius: 8px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
+  font-size: 0.875rem;
   transition: all 0.2s ease;
 }
 
@@ -869,56 +840,58 @@ watch(() => props.searchQuery, (newQuery) => {
   transform: scale(1.1);
 }
 
+.quick-add-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* Category Results */
 .category-results {
-  padding: 0 1.5rem 1rem;
-  border-top: 1px solid #e5e7eb;
-  margin-top: 1rem;
-  padding-top: 1rem;
+  padding: 16px;
+  border-top: 1px solid #f8f9fa;
 }
 
 .category-list {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 8px;
 }
 
 .category-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.75rem;
-  background: transparent;
+  padding: 12px;
   border: none;
+  background: #f8f9fa;
   border-radius: 8px;
-  color: #374151;
-  text-decoration: none;
   transition: all 0.2s ease;
   text-align: left;
 }
 
 .category-item:hover {
-  background-color: #f3f4f6;
+  background: #e9ecef;
+  transform: translateX(4px);
 }
 
 .product-count {
-  color: #9ca3af;
-  font-size: 0.85rem;
+  font-size: 0.75rem;
+  color: #6c757d;
 }
 
-/* Search Footer */
+/* Footer */
 .search-footer {
-  border-top: 1px solid #e5e7eb;
-  padding: 1rem 1.5rem;
-  background: #f9fafb;
-  border-radius: 0 0 16px 16px;
+  padding: 12px 16px;
+  background: #f8f9fa;
+  border-top: 1px solid #e9ecef;
+  border-radius: 0 0 15px 15px;
 }
 
 .search-tips {
   text-align: center;
 }
 
-/* Search Overlay for Mobile */
+/* Overlay */
 .search-overlay {
   position: fixed;
   top: 0;
@@ -929,28 +902,39 @@ watch(() => props.searchQuery, (newQuery) => {
   z-index: 999;
 }
 
-/* Responsive */
+/* Transitions */
+.dropdown-enter-active,
+.dropdown-leave-active {
+  transition: all 0.3s ease;
+}
+
+.dropdown-enter-from {
+  opacity: 0;
+  transform: translateY(-10px);
+}
+
+.dropdown-leave-to {
+  opacity: 0;
+  transform: translateY(-5px);
+}
+
+/* Mobile Responsive */
 @media (max-width: 768px) {
   .search-dropdown {
     position: fixed;
-    top: 80px;
-    left: 1rem;
-    right: 1rem;
-    max-height: calc(100vh - 100px);
-    z-index: 1001;
+    top: 60px;
+    left: 10px;
+    right: 10px;
+    max-height: calc(100vh - 80px);
   }
   
   .search-wrapper {
-    border-radius: 25px;
-  }
-  
-  .search-input {
-    padding-left: 2.5rem;
-    font-size: 16px; /* Prevent zoom on iOS */
+    border-radius: 20px;
+    padding: 10px 16px;
   }
   
   .product-item {
-    padding: 0.75rem;
+    padding: 16px 12px;
   }
   
   .product-image {
@@ -958,30 +942,22 @@ watch(() => props.searchQuery, (newQuery) => {
     height: 50px;
   }
   
-  .recent-searches,
-  .popular-keywords {
-    justify-content: center;
+  .dropdown-section {
+    padding: 12px;
   }
 }
 
 @media (max-width: 576px) {
-  .search-actions {
-    gap: 0.25rem;
-  }
-  
-  .search-btn {
-    padding: 0.5rem 0.75rem;
-    font-size: 0.85rem;
-  }
-  
-  .product-actions {
-    display: none;
-  }
-  
-  .results-header {
+  .recent-searches,
+  .popular-keywords {
     flex-direction: column;
-    gap: 0.5rem;
-    align-items: flex-start;
+  }
+  
+  .recent-search-item,
+  .popular-keyword {
+    width: 100%;
+    text-align: left;
+    justify-content: flex-start;
   }
 }
 </style>

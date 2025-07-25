@@ -1,5 +1,6 @@
 import { ref, computed, onMounted } from 'vue'
 import { useCart } from './useCart'
+import { filterBySearchTerm } from '../utils/vietnamese'
 
 export function useEasyMart() {
   // Reactive state
@@ -106,9 +107,12 @@ export function useEasyMart() {
 
   const searchResults = computed(() => {
     if (searchQuery.value.trim().length < 2) return []
-    return products.value.filter(product =>
-      product.name.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-      product.description.toLowerCase().includes(searchQuery.value.toLowerCase())
+    
+    // Use Vietnamese diacritic-insensitive search
+    return filterBySearchTerm(
+      products.value, 
+      searchQuery.value, 
+      ['name', 'description']
     ).slice(0, 5)
   })
 

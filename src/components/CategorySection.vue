@@ -121,22 +121,42 @@
             >
               <i class="fas fa-expand me-2"></i>Hiển thị tất cả
             </button>
+            <router-link 
+              :to="{ name: 'Category', params: { id: category.id } }"
+              class="btn btn-outline-success fw-bold px-4 py-2 rounded-3"
+            >
+              <i class="fas fa-arrow-right me-2"></i>Xem trang danh mục
+            </router-link>
           </div>
 
           <!-- Show Less button -->
-          <div v-else-if="displayedProducts.length > initialProductCount" class="mt-3">
+          <div v-else-if="displayedProducts.length > initialDisplayCount" class="mt-3">
             <button 
               class="btn btn-outline-secondary fw-semibold px-4 py-2 rounded-3" 
               @click="showLessProducts"
             >
               <i class="fas fa-compress me-2"></i>Thu gọn
             </button>
+            <router-link 
+              :to="{ name: 'Category', params: { id: category.id } }"
+              class="btn btn-outline-success fw-bold px-4 py-2 rounded-3 ms-2"
+            >
+              <i class="fas fa-arrow-right me-2"></i>Xem trang danh mục
+            </router-link>
           </div>
 
           <!-- All products shown message -->
           <div v-else class="text-muted">
             <i class="fas fa-check-circle text-success me-2"></i>
             Đã hiển thị tất cả sản phẩm trong danh mục
+            <div class="mt-3">
+              <router-link 
+                :to="{ name: 'Category', params: { id: category.id } }"
+                class="btn btn-outline-success fw-bold px-4 py-2 rounded-3"
+              >
+                <i class="fas fa-arrow-right me-2"></i>Xem trang danh mục
+              </router-link>
+            </div>
           </div>
         </div>
       </div>
@@ -252,7 +272,7 @@ const hasMoreProducts = computed(() => {
   return displayCount.value < props.products.length
 })
 
-const remainingProducts = computed(() => {
+const remainingProductsCount = computed(() => {
   return props.products.length - displayCount.value
 })
 
@@ -283,7 +303,7 @@ const handleSort = () => {
   // Sorting is handled by computed property
 }
 
-const showMoreProducts = async () => {
+const loadMoreProducts = async () => {
   isLoading.value = true
   showLoadingState.value = true
   

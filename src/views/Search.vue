@@ -54,7 +54,7 @@
               <input 
                 type="text" 
                 class="form-control form-control-lg"
-                placeholder="Tìm kiếm sản phẩm..."
+                placeholder="Tìm kiếm sản phẩm... (có thể tìm không dấu: 'tim kiem' thay vì 'tìm kiếm')"
                 v-model="localSearchQuery"
                 @keyup.enter="performSearch"
               >
@@ -104,6 +104,7 @@
               <li>• Kiểm tra chính tả từ khóa</li>
               <li>• Thử sử dụng từ khóa khác</li>
               <li>• Sử dụng từ khóa ngắn gọn hơn</li>
+              <li>• Thử tìm kiếm không dấu (ví dụ: "tim kiem" thay vì "tìm kiếm")</li>
             </ul>
           </div>
           <router-link to="/" class="btn btn-primary mt-3">
@@ -119,6 +120,10 @@
           <i class="fas fa-search fa-4x text-muted mb-4"></i>
           <h3 class="text-muted mb-3">Tìm kiếm sản phẩm</h3>
           <p class="text-muted mb-4">Nhập từ khóa để tìm kiếm sản phẩm bạn muốn</p>
+          <p class="text-muted small">
+            <i class="fas fa-info-circle me-1"></i>
+            Bạn có thể tìm kiếm có hoặc không dấu. Ví dụ: "tìm kiếm" hoặc "tim kiem"
+          </p>
         </div>
       </div>
     </div>
@@ -133,7 +138,7 @@
  * Search.vue - Trang tìm kiếm sản phẩm
  * 
  * Chức năng:
- * - Tìm kiếm sản phẩm theo từ khóa
+ * - Tìm kiếm sản phẩm theo từ khóa (hỗ trợ tìm kiếm không dấu)
  * - Hiển thị kết quả tìm kiếm
  * - Sắp xếp kết quả
  * - Xử lý trường hợp không có kết quả
@@ -142,6 +147,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useEasyMart } from '../composables/useEasyMart'
+import { filterBySearchTerm } from '../utils/vietnamese'
 
 // Components
 // Đã xóa import Header và Footer
@@ -172,10 +178,11 @@ const sortBy = ref('relevance')
 const searchResultProducts = computed(() => {
   if (!currentSearchTerm.value || currentSearchTerm.value.length < 2) return []
   
-  const term = currentSearchTerm.value.toLowerCase()
-  return products.value.filter(product =>
-    product.name.toLowerCase().includes(term) ||
-    product.description.toLowerCase().includes(term)
+  // Use Vietnamese diacritic-insensitive search
+  return filterBySearchTerm(
+    products.value, 
+    currentSearchTerm.value, 
+    ['name', 'description']
   )
 })
 
@@ -306,4 +313,4 @@ watch(() => route.query.q, (newQuery) => {
     padding: 1.5rem;
   }
 }
-</style> 
+</style>
