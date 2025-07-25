@@ -1,5 +1,5 @@
 <template>
-  <div class="container mb-4">
+  <div class="hero-fullscreen mb-4">
     <div id="heroCarousel" class="carousel slide carousel-fade hero-carousel-animated" data-bs-ride="carousel" data-bs-interval="4000">
       <div class="carousel-indicators">
         <button 
@@ -12,7 +12,7 @@
         ></button>
       </div>
       
-      <div class="carousel-inner rounded-4 overflow-hidden">
+      <div class="carousel-inner overflow-hidden">
         <div 
           v-for="(slide, index) in slides" 
           :key="index"
@@ -88,6 +88,13 @@ const slides = [
 
 <style scoped>
 /* ==================== HERO CAROUSEL ANIMATIONS ==================== */
+
+/* Full-screen hero container */
+.hero-fullscreen {
+  width: 100vw;
+  margin-left: calc(-50vw + 50%);
+  position: relative;
+}
 
 /* Main carousel container animation */
 .hero-carousel-animated {
@@ -279,6 +286,15 @@ const slides = [
 /* ==================== RESPONSIVE ANIMATIONS ==================== */
 
 @media (max-width: 768px) {
+  .hero-fullscreen {
+    width: 100vw;
+    margin-left: calc(-50vw + 50%);
+  }
+  
+  .carousel-image {
+    height: 300px !important; /* Smaller height on mobile but not too small */
+  }
+  
   .hero-carousel-animated:hover {
     transform: none;
   }

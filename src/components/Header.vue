@@ -51,12 +51,11 @@
       <div class="collapse navbar-collapse" id="navbarNav">
         <ul class="navbar-nav ms-auto align-items-center">
           <!-- Category Dropdown -->
-          <li class="nav-item dropdown me-3" style="position: static;">
+          <li class="nav-item dropdown me-3" style="position: static;" @mouseenter="showCategoryDropdownOnHover" @mouseleave="hideCategoryDropdownOnLeave">
             <router-link 
               to="/categories"
               class="nav-link dropdown-toggle px-3 py-2 rounded-pill" 
               role="button" 
-              @click="toggleCategoryDropdown"
               :aria-expanded="showCategoryDropdown"
               id="category-trigger"
             >
@@ -65,12 +64,11 @@
           </li>
           
           <!-- Account Dropdown -->
-          <li class="nav-item dropdown me-3" style="position: static;">
+          <li class="nav-item dropdown me-3" style="position: static;" @mouseenter="showAccountDropdownOnHover" @mouseleave="hideAccountDropdownOnLeave">
             <a 
               class="nav-link dropdown-toggle px-3 py-2 rounded-pill" 
               href="#" 
               role="button" 
-              @click="toggleAccountDropdown"
               :aria-expanded="showAccountDropdown"
               id="account-trigger"
             >
@@ -97,10 +95,12 @@
       :class="{ show: showCategoryDropdown }" 
       style="position: fixed !important; z-index: 2147483647 !important;"
       v-if="showCategoryDropdown"
+      @mouseenter="keepCategoryDropdownOpen"
+      @mouseleave="hideCategoryDropdownOnLeave"
     >
       <li v-for="category in categories" :key="category.id">
         <router-link 
-          :to="{ name: 'Categories', hash: `#category-${category.id}` }"
+          :to="{ name: 'Category', params: { id: category.id } }"
           class="dropdown-item rounded-2 mx-2 my-1"
           @click="showCategoryDropdown = false"
         >
@@ -115,6 +115,8 @@
       :class="{ show: showAccountDropdown }" 
       style="position: fixed !important; z-index: 2147483647 !important;"
       v-if="showAccountDropdown"
+      @mouseenter="keepAccountDropdownOpen"
+      @mouseleave="hideAccountDropdownOnLeave"
     >
       <template v-if="isLoggedIn">
         <li class="dropdown-item-text text-center mb-2">
@@ -202,7 +204,99 @@ const isHeaderVisible = ref(true)
 const lastScrollY = ref(0)
 const scrollDirection = ref('up')
 
+// Hover timers cho smooth dropdown experience
+const categoryHoverTimer = ref(null)
+const accountHoverTimer = ref(null)
+
 // ==================== METHODS ====================
+/**
+ * Hiển thị category dropdown khi hover
+ */
+const showCategoryDropdownOnHover = () => {
+  // Clear any existing timer
+  if (categoryHoverTimer.value) {
+    clearTimeout(categoryHoverTimer.value)
+    categoryHoverTimer.value = null
+  }
+  
+  showCategoryDropdown.value = true
+  showAccountDropdown.value = false
+  
+  nextTick(() => {
+    const trigger = document.getElementById('category-trigger')
+    const dropdown = document.querySelector('.category-dropdown')
+    if (trigger && dropdown) {
+      const rect = trigger.getBoundingClientRect()
+      dropdown.style.top = `${rect.bottom + 8}px`
+      dropdown.style.left = `${rect.left}px`
+      dropdown.style.right = 'auto'
+    }
+  })
+}
+
+/**
+ * Ẩn category dropdown khi leave
+ */
+const hideCategoryDropdownOnLeave = () => {
+  categoryHoverTimer.value = setTimeout(() => {
+    showCategoryDropdown.value = false
+  }, 200) // Delay 200ms để cho phép di chuyển mouse
+}
+
+/**
+ * Giữ category dropdown mở khi hover vào dropdown
+ */
+const keepCategoryDropdownOpen = () => {
+  if (categoryHoverTimer.value) {
+    clearTimeout(categoryHoverTimer.value)
+    categoryHoverTimer.value = null
+  }
+}
+
+/**
+ * Hiển thị account dropdown khi hover
+ */
+const showAccountDropdownOnHover = () => {
+  // Clear any existing timer
+  if (accountHoverTimer.value) {
+    clearTimeout(accountHoverTimer.value)
+    accountHoverTimer.value = null
+  }
+  
+  showAccountDropdown.value = true
+  showCategoryDropdown.value = false
+  
+  nextTick(() => {
+    const trigger = document.getElementById('account-trigger')
+    const dropdown = document.querySelector('.account-dropdown')
+    if (trigger && dropdown) {
+      const rect = trigger.getBoundingClientRect()
+      dropdown.style.top = `${rect.bottom + 8}px`
+      dropdown.style.left = `${rect.left}px`
+      dropdown.style.right = 'auto'
+    }
+  })
+}
+
+/**
+ * Ẩn account dropdown khi leave
+ */
+const hideAccountDropdownOnLeave = () => {
+  accountHoverTimer.value = setTimeout(() => {
+    showAccountDropdown.value = false
+  }, 200) // Delay 200ms để cho phép di chuyển mouse
+}
+
+/**
+ * Giữ account dropdown mở khi hover vào dropdown
+ */
+const keepAccountDropdownOpen = () => {
+  if (accountHoverTimer.value) {
+    clearTimeout(accountHoverTimer.value)
+    accountHoverTimer.value = null
+  }
+}
+
 /**
  * Toggle dropdown danh mục và đóng dropdown khác
  */
@@ -370,6 +464,14 @@ onUnmounted(() => {
   document.removeEventListener('click', handleOutsideClick)
   window.removeEventListener('scroll', throttledHandleScroll)
   window.removeEventListener('resize', handleResize)
+  
+  // Clear timers
+  if (categoryHoverTimer.value) {
+    clearTimeout(categoryHoverTimer.value)
+  }
+  if (accountHoverTimer.value) {
+    clearTimeout(accountHoverTimer.value)
+  }
   
   if (scrollTimer !== null) {
     clearTimeout(scrollTimer)
