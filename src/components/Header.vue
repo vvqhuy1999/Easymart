@@ -52,16 +52,16 @@
         <ul class="navbar-nav ms-auto align-items-center">
           <!-- Category Dropdown -->
           <li class="nav-item dropdown me-3" style="position: static;">
-            <a 
+            <router-link 
+              to="/categories"
               class="nav-link dropdown-toggle px-3 py-2 rounded-pill" 
-              href="#" 
               role="button" 
               @click="toggleCategoryDropdown"
               :aria-expanded="showCategoryDropdown"
               id="category-trigger"
             >
               <i class="fas fa-th-large me-2"></i>Danh mục
-            </a>
+            </router-link>
           </li>
           
           <!-- Account Dropdown -->
@@ -99,13 +99,13 @@
       v-if="showCategoryDropdown"
     >
       <li v-for="category in categories" :key="category.id">
-        <a 
-          class="dropdown-item rounded-2 mx-2 my-1" 
-          href="#"
-          @click="scrollToCategory(category.id)"
+        <router-link 
+          :to="{ name: 'Categories', hash: `#category-${category.id}` }"
+          class="dropdown-item rounded-2 mx-2 my-1"
+          @click="showCategoryDropdown = false"
         >
           <i :class="`${category.icon} text-${category.color} me-3`"></i>{{ category.name }}
-        </a>
+        </router-link>
       </li>
     </ul>
 
@@ -207,7 +207,7 @@ const scrollDirection = ref('up')
  * Toggle dropdown danh mục và đóng dropdown khác
  */
 const toggleCategoryDropdown = (event) => {
-  event.preventDefault()
+  // Don't prevent default for router-link navigation
   showCategoryDropdown.value = !showCategoryDropdown.value
   showAccountDropdown.value = false
   
