@@ -419,16 +419,17 @@
                   
                   <!-- Applied Coupon Display -->
                   <div v-if="appliedCoupon" class="applied-coupon">
-                    <div class="d-flex justify-content-between align-items-center p-2 bg-success bg-opacity-10 rounded">
+                    <div class="d-flex justify-content-between align-items-center p-3 rounded-3" style="background: linear-gradient(135deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1)); border: 1px solid rgba(102, 126, 234, 0.3);">
                       <div>
-                        <small class="text-success fw-bold">
+                        <small class="fw-bold" style="color: #667eea;">
                           <i class="fas fa-ticket-alt me-1"></i>
                           {{ appliedCoupon.code }}
                         </small>
                         <div class="small text-muted">{{ appliedCoupon.description }}</div>
                       </div>
                       <button 
-                        class="btn btn-sm btn-outline-danger"
+                        class="btn btn-sm"
+                        style="background: linear-gradient(135deg, #ff6b6b, #ee5a5a); color: white; border: none;"
                         @click="removeCoupon"
                         title="Xóa mã khuyến mãi"
                       >
@@ -438,7 +439,7 @@
                   </div>
 
                   <!-- Coupon Discount -->
-                  <div v-if="couponDiscount > 0" class="d-flex justify-content-between mb-2 text-success">
+                  <div v-if="couponDiscount > 0" class="d-flex justify-content-between mb-2" style="color: #11998e;">
                     <span>Giảm giá ({{ appliedCoupon?.code }}):</span>
                     <span>-{{ formatPrice(couponDiscount) }}</span>
                   </div>
@@ -450,7 +451,8 @@
                       <button 
                         v-for="coupon in availableCoupons" 
                         :key="coupon.code"
-                        class="btn btn-outline-success btn-sm"
+                        class="btn btn-sm"
+                        style="background: linear-gradient(135deg, #667eea, #764ba2); color: white; border: none;"
                         @click="selectCoupon(coupon.code)"
                         :title="coupon.description"
                       >

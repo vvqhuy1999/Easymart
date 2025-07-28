@@ -14,6 +14,15 @@ const routes = [
     }
   },
   {
+    path: '/promotions',
+    name: 'Promotions',
+    component: () => import('../views/Promotions.vue'),
+    meta: {
+      title: 'Khuyến mãi - EasyMart',
+      description: 'Khám phá các ưu đãi và mã giảm giá hấp dẫn tại EasyMart'
+    }
+  },
+  {
     path: '/product/:id',
     name: 'ProductDetail',
     component: ProductDetail,

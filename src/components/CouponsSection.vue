@@ -251,14 +251,14 @@ const viewMoreCoupons = () => {
 .header-icon {
   width: 100px;
   height: 100px;
-  background: linear-gradient(135deg, var(--bs-primary), #0d6efd);
+  background: linear-gradient(135deg, #667eea, #764ba2);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   color: white;
   margin: 0 auto 2rem;
-  box-shadow: 0 8px 30px rgba(13, 110, 253, 0.3);
+  box-shadow: 0 8px 30px rgba(102, 126, 234, 0.4);
   animation: bounce 2s infinite;
 }
 
@@ -330,19 +330,19 @@ const viewMoreCoupons = () => {
 }
 
 .coupon-percentage {
-  border-color: var(--bs-primary);
+  border-color: #667eea;
 }
 
 .coupon-fixed {
-  border-color: var(--bs-success);
+  border-color: #11998e;
 }
 
 .coupon-shipping {
-  border-color: var(--bs-info);
+  border-color: #4facfe;
 }
 
 .coupon-special {
-  border-color: var(--bs-warning);
+  border-color: #fa709a;
 }
 
 .coupon-used, .coupon-expired {
@@ -356,7 +356,7 @@ const viewMoreCoupons = () => {
 
 /* Coupon Left Side */
 .coupon-left {
-  background: linear-gradient(135deg, var(--bs-primary), #0d6efd);
+  background: linear-gradient(135deg, #667eea, #764ba2);
   color: white;
   padding: 2rem;
   display: flex;
@@ -365,24 +365,26 @@ const viewMoreCoupons = () => {
   justify-content: center;
   min-width: 160px;
   position: relative;
+  box-shadow: inset 0 0 20px rgba(255, 255, 255, 0.1);
 }
 
 .coupon-fixed .coupon-left {
-  background: linear-gradient(135deg, var(--bs-success), #20c997);
+  background: linear-gradient(135deg, #11998e, #38ef7d);
 }
 
 .coupon-shipping .coupon-left {
-  background: linear-gradient(135deg, var(--bs-info), #17a2b8);
+  background: linear-gradient(135deg, #4facfe, #00f2fe);
 }
 
 .coupon-special .coupon-left {
-  background: linear-gradient(135deg, var(--bs-warning), #ffc107);
+  background: linear-gradient(135deg, #fa709a, #fee140);
 }
 
 .coupon-icon {
   font-size: 2rem;
   margin-bottom: 1rem;
-  opacity: 0.8;
+  opacity: 0.9;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 .coupon-value {
@@ -393,11 +395,12 @@ const viewMoreCoupons = () => {
   font-size: 2.5rem;
   font-weight: 700;
   line-height: 1;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 .discount-unit {
   font-size: 0.875rem;
-  opacity: 0.8;
+  opacity: 0.9;
   text-transform: uppercase;
   letter-spacing: 1px;
 }
@@ -406,7 +409,7 @@ const viewMoreCoupons = () => {
 .coupon-divider {
   position: relative;
   width: 2px;
-  background: #e2e8f0;
+  background: linear-gradient(to bottom, #e2e8f0, #cbd5e0, #e2e8f0);
 }
 
 .divider-circles {
@@ -480,13 +483,14 @@ const viewMoreCoupons = () => {
 }
 
 .code-value {
-  background: #f8f9fa;
-  color: var(--bs-primary);
+  background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
+  color: #667eea;
   padding: 0.25rem 0.75rem;
-  border-radius: 6px;
+  border-radius: 8px;
   font-weight: 700;
   font-family: monospace;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #cbd5e0;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
 .coupon-expiry, .coupon-condition {
@@ -508,14 +512,26 @@ const viewMoreCoupons = () => {
   font-weight: 600;
   border-radius: 10px;
   transition: all 0.2s ease;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  border: none;
+  color: white;
 }
 
 .coupon-btn:hover:not(:disabled) {
   transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
 }
 
 .coupon-btn:disabled {
   cursor: not-allowed;
+}
+
+.btn-success.coupon-btn {
+  background: linear-gradient(135deg, #11998e, #38ef7d);
+}
+
+.btn-success.coupon-btn:hover {
+  box-shadow: 0 4px 15px rgba(17, 153, 142, 0.4);
 }
 
 /* Status Badges */
@@ -538,7 +554,7 @@ const viewMoreCoupons = () => {
 }
 
 .status-used {
-  background: linear-gradient(135deg, #22c55e, #16a34a);
+  background: linear-gradient(135deg, #11998e, #38ef7d);
   color: white;
 }
 
