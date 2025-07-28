@@ -81,6 +81,12 @@
           </button>
         </form>
         
+        <!-- Google Sign-In Component -->
+        <GoogleSignIn 
+          :loading="isLoading"
+          @google-login="handleGoogleLogin"
+        />
+        
         <div class="text-center mt-3" :class="{ 'd-none': isLoading }">
           <span>Bạn chưa có tài khoản?</span>
           <router-link to="/register" class="ms-1 text-primary">Đăng ký</router-link>
@@ -103,10 +109,11 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '../composables/useAuth'
+import GoogleSignIn from '../components/GoogleSignIn.vue'
 
 // Composables
 const router = useRouter()
-const { login } = useAuth()
+const { login, loginWithGoogle } = useAuth()
 
 // Form data
 const email = ref('')
@@ -151,6 +158,36 @@ async function handleLogin() {
     }
   } catch (err) {
     error.value = 'Có lỗi xảy ra, vui lòng thử lại'
+  } finally {
+    isLoading.value = false
+  }
+}
+
+// Handle Google Login
+async function handleGoogleLogin(response) {
+  error.value = ''
+  success.value = ''
+  isLoading.value = true
+  
+  try {
+    const result = await loginWithGoogle(response.credential)
+    
+    if (result.success) {
+      success.value = `Chào mừng ${result.user.name}! Đang chuyển hướng...`
+      
+      // Check for redirect after login
+      const redirectPath = localStorage.getItem('easymart-redirect-after-login')
+      localStorage.removeItem('easymart-redirect-after-login')
+      
+      // Redirect after success message
+      setTimeout(() => {
+        router.push(redirectPath || '/')
+      }, 1500)
+    } else {
+      error.value = result.error || 'Đăng nhập với Google thất bại'
+    }
+  } catch (err) {
+    error.value = 'Có lỗi xảy ra khi đăng nhập với Google, vui lòng thử lại'
   } finally {
     isLoading.value = false
   }

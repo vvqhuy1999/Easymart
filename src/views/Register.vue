@@ -54,6 +54,23 @@
             </div>
           </div>
           <div class="mb-3">
+            <label for="phone" class="form-label">Số điện thoại</label>
+            <div class="input-group">
+              <span class="input-group-text"><i class="fas fa-phone"></i></span>
+              <input 
+                v-model="phone" 
+                type="tel" 
+                class="form-control" 
+                id="phone" 
+                required 
+                autocomplete="tel"
+                placeholder="Nhập số điện thoại"
+                pattern="[0-9]{10,11}"
+                title="Số điện thoại phải có 10-11 chữ số"
+              >
+            </div>
+          </div>
+          <div class="mb-3">
             <label for="password" class="form-label">Mật khẩu</label>
             <div class="input-group">
               <span class="input-group-text"><i class="fas fa-lock"></i></span>
@@ -112,6 +129,27 @@
           </button>
         </form>
         
+        <!-- Divider -->
+        <div class="text-center my-3" :class="{ 'd-none': isLoading }">
+          <div class="position-relative">
+            <hr>
+            <span class="position-absolute top-50 start-50 translate-middle bg-white px-3 text-muted">hoặc</span>
+          </div>
+        </div>
+        
+        <!-- Google Register Button -->
+        <div class="mb-3" :class="{ 'd-none': isLoading }">
+          <GoogleLogin 
+            :callback="handleGoogleRegister"
+            class="w-100"
+          >
+            <button type="button" class="btn btn-outline-danger w-100 fw-bold">
+              <i class="fab fa-google me-2"></i>
+              Đăng ký với Google
+            </button>
+          </GoogleLogin>
+        </div>
+        
         <div class="text-center mt-3" :class="{ 'd-none': isLoading }">
           <span>Đã có tài khoản?</span>
           <router-link to="/login" class="ms-1 text-primary">Đăng nhập</router-link>
@@ -125,14 +163,16 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '../composables/useAuth'
+import { GoogleLogin } from 'vue3-google-login'
 
 // Composables
 const router = useRouter()
-const { register } = useAuth()
+const { register, registerWithGoogle } = useAuth()
 
 // Form data
 const name = ref('')
 const email = ref('')
+const phone = ref('')
 const password = ref('')
 const confirmPassword = ref('')
 const agreeTerms = ref(false)
@@ -155,6 +195,13 @@ async function handleRegister() {
     return
   }
   
+  // Validate phone number
+  const phoneRegex = /^[0-9]{10,11}$/
+  if (!phoneRegex.test(phone.value)) {
+    error.value = 'Số điện thoại phải có 10-11 chữ số!'
+    return
+  }
+  
   if (!agreeTerms.value) {
     error.value = 'Vui lòng đồng ý với điều khoản sử dụng!'
     return
@@ -163,7 +210,7 @@ async function handleRegister() {
   isLoading.value = true
   
   try {
-    const result = await register(name.value, email.value, password.value, confirmPassword.value)
+    const result = await register(name.value, email.value, phone.value, password.value, confirmPassword.value)
     
     if (result.success) {
       success.value = `Chào mừng ${result.user.name}! Đăng ký thành công. Đang chuyển hướng...`
@@ -174,6 +221,32 @@ async function handleRegister() {
       }, 2000)
     } else {
       error.value = result.error || 'Đăng ký thất bại'
+    }
+  } catch (err) {
+    error.value = 'Có lỗi xảy ra, vui lòng thử lại'
+  } finally {
+    isLoading.value = false
+  }
+}
+
+async function handleGoogleRegister(response) {
+  // Clear previous messages
+  error.value = ''
+  success.value = ''
+  isLoading.value = true
+  
+  try {
+    const result = await registerWithGoogle(response.credential)
+    
+    if (result.success) {
+      success.value = `Chào mừng ${result.user.name}! Đăng ký thành công. Đang chuyển hướng...`
+      
+      // Redirect after success message
+      setTimeout(() => {
+        router.push('/')
+      }, 2000)
+    } else {
+      error.value = result.error || 'Đăng ký với Google thất bại'
     }
   } catch (err) {
     error.value = 'Có lỗi xảy ra, vui lòng thử lại'
