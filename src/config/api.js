@@ -44,7 +44,7 @@ export const API_CONFIG = {
     CHECK_SUB: '/api/oauth2/check-sub',           // GET - Kiểm tra OAuth2 ID
     
     // Configuration & Testing
-    TEST_CONFIG: '/api/oauth2/test-config',       // GET - Kiểm tra cấu hình OAuth2
+    // TEST_CONFIG: '/api/oauth2/test-config',       // GET - Kiểm tra cấu hình OAuth2
     
     // Deprecated (sẽ chuyển hướng)
     LOGOUT_DEPRECATED: '/api/oauth2/logout'       // POST - ⚠️ DEPRECATED, dùng AUTH.LOGOUT

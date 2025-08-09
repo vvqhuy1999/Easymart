@@ -1,5 +1,6 @@
 // API Client utility với JWT token authentication
 import { API_CONFIG } from '../config/api'
+import { getToken, setToken, removeToken } from './tokenStorage'
 
 /**
  * Make authenticated API calls với JWT token
@@ -8,7 +9,7 @@ import { API_CONFIG } from '../config/api'
  * @returns {Promise} - API response
  */
 export async function apiCall(endpoint, options = {}) {
-  const token = localStorage.getItem('easymart-token')
+  const token = getToken()
   
   if (!token) {
     throw new Error('No JWT token found. Please login again.')
@@ -35,7 +36,7 @@ export async function apiCall(endpoint, options = {}) {
       if (response.status === 401) {
         // Token expired or invalid
         console.warn('JWT token expired or invalid')
-        localStorage.removeItem('easymart-token')
+        removeToken()
         localStorage.removeItem('easymart-user')
         window.location.href = '/login'
         return
@@ -57,7 +58,7 @@ export async function apiCall(endpoint, options = {}) {
  * @returns {boolean} - True if token is valid
  */
 export function isTokenValid() {
-  const token = localStorage.getItem('easymart-token')
+  const token = getToken()
   if (!token) return false
   
   try {
@@ -78,7 +79,7 @@ export function isTokenValid() {
  * @returns {number|null} - Expiration timestamp or null if invalid
  */
 export function getTokenExpiration() {
-  const token = localStorage.getItem('easymart-token')
+  const token = getToken()
   if (!token) return null
   
   try {
@@ -93,7 +94,7 @@ export function getTokenExpiration() {
  * Auto-refresh token when near expiration
  */
 export async function autoRefreshToken() {
-  const token = localStorage.getItem('easymart-token')
+  const token = getToken()
   if (!token) return
   
   try {
@@ -107,7 +108,7 @@ export async function autoRefreshToken() {
       
       const response = await apiCall('/api/oauth2/get-jwt-token')
       if (response.success && response.result.jwt_token) {
-        localStorage.setItem('easymart-token', response.result.jwt_token)
+        setToken(response.result.jwt_token)
         console.log('✅ Token refreshed successfully')
       }
     }
@@ -132,7 +133,7 @@ export function startTokenAutoRefresh() {
  * Logout user và clean up tokens
  */
 export function logout() {
-  localStorage.removeItem('easymart-token')
+  removeToken()
   localStorage.removeItem('easymart-user')
   localStorage.removeItem('easymart-user-email')
   localStorage.removeItem('easymart-user-role')

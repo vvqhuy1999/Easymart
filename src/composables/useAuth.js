@@ -1,6 +1,76 @@
 import { ref, computed } from 'vue'
 import { API_CONFIG, getApiUrl, getApiUrlWithParams, USER_ROLES } from '../config/api.js'
 
+// Configuration for token storage
+const TOKEN_STORAGE_TYPE = 'cookie' // 'localStorage', 'sessionStorage', or 'cookie'
+
+// Cookie utility functions
+const setCookie = (name, value, days = 7, secure = false, httpOnly = false) => {
+  let expires = ''
+  if (days) {
+    const date = new Date()
+    date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000))
+    expires = `; expires=${date.toUTCString()}`
+  }
+  
+  let cookieString = `${name}=${value || ''}${expires}; path=/`
+  
+  if (secure) {
+    cookieString += '; Secure'
+  }
+  
+  if (httpOnly) {
+    cookieString += '; HttpOnly'
+  }
+  
+  // SameSite attribute for CSRF protection
+  cookieString += '; SameSite=Strict'
+  
+  document.cookie = cookieString
+}
+
+const getCookie = (name) => {
+  const nameEQ = name + '='
+  const ca = document.cookie.split(';')
+  for (let i = 0; i < ca.length; i++) {
+    let c = ca[i]
+    while (c.charAt(0) === ' ') c = c.substring(1, c.length)
+    if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length)
+  }
+  return null
+}
+
+const removeCookie = (name) => {
+  document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=Strict`
+}
+
+// Universal storage helper functions
+const setStorageItem = (key, value) => {
+  if (TOKEN_STORAGE_TYPE === 'cookie' && key === 'easymart-token') {
+    // For token, use secure cookie
+    setCookie(key, value, 7, false, false) // 7 days, will be secure in production
+  } else {
+    // For user data, still use localStorage for easy access
+    localStorage.setItem(key, value)
+  }
+}
+
+const getStorageItem = (key) => {
+  if (TOKEN_STORAGE_TYPE === 'cookie' && key === 'easymart-token') {
+    return getCookie(key)
+  } else {
+    return localStorage.getItem(key)
+  }
+}
+
+const removeStorageItem = (key) => {
+  if (TOKEN_STORAGE_TYPE === 'cookie' && key === 'easymart-token') {
+    removeCookie(key)
+  } else {
+    localStorage.removeItem(key)
+  }
+}
+
 // Global state - singleton pattern
 const user = ref(null)
 const isLoggedIn = computed(() => !!user.value)
@@ -59,10 +129,10 @@ const isTokenValid = (token) => {
 
 // Initialize user from token (token-only approach)
 const initUserFromToken = () => {
-  const token = localStorage.getItem('easymart-token')
+  const token = getStorageItem('easymart-token')
   if (!token || !isTokenValid(token)) {
     // Clear invalid data
-    localStorage.removeItem('easymart-token')
+    removeStorageItem('easymart-token')
     localStorage.removeItem('easymart-user')
     user.value = null
     return
@@ -105,7 +175,7 @@ const initUserFromToken = () => {
 
 // Debug function to test current token
 const debugCurrentToken = () => {
-  const token = localStorage.getItem('easymart-token')
+  const token = getStorageItem('easymart-token')
   console.log('🔍 Current token:', token)
   
   if (token) {
@@ -244,7 +314,7 @@ const updateUserFromValidation = async (validationResult) => {
 
 // Auto-logout if token is invalid (expired, blacklisted, etc.)
 const autoLogoutIfInvalid = async () => {
-  const token = localStorage.getItem('easymart-token')
+  const token = getStorageItem('easymart-token')
   if (!token) {
     console.log('🔍 Auto-logout check: No token found')
     return
@@ -278,7 +348,7 @@ const performAutoLogout = async (reason) => {
   console.log('🚪 Performing auto-logout:', reason)
   
   // Clear local data (don't call logout API since token might be invalid)
-  localStorage.removeItem('easymart-token')
+  removeStorageItem('easymart-token')
   localStorage.removeItem('easymart-user')
   user.value = null
   
@@ -404,7 +474,7 @@ const login = async (email, password) => {
         
         // Save JWT token
         if (result.token) {
-          localStorage.setItem('easymart-token', result.token)
+          setStorageItem('easymart-token', result.token)
         }
         
         // For traditional login, we need to get user info separately or create basic user data
@@ -627,7 +697,7 @@ const getJWTToken = async () => {
   try {
     const response = await apiCall(API_CONFIG.OAUTH2.GET_JWT_TOKEN)
     if (response.success) {
-      localStorage.setItem('easymart-token', response.result.jwt_token)
+      setStorageItem('easymart-token', response.result.jwt_token)
       return response.result
     } else {
       throw new Error(response.message || 'Không thể lấy JWT token')
@@ -641,7 +711,7 @@ const getJWTToken = async () => {
 // Get user info from backend
 const getUserInfo = async () => {
   try {
-    const token = localStorage.getItem('easymart-token')
+    const token = getStorageItem('easymart-token')
     if (!token) {
       throw new Error('Không có token xác thực')
     }
@@ -736,7 +806,7 @@ const checkOAuth2Sub = async (sub) => {
 // Check authentication status - NEW API
 const checkAuthStatus = async () => {
   try {
-    const token = localStorage.getItem('easymart-token')
+    const token = getStorageItem('easymart-token')
     if (!token) {
       return { success: false, error: 'No token found' }
     }
@@ -775,7 +845,7 @@ const handleOAuth2Callback = async () => {
     // and redirects directly to /oauth2/success with token in URL parameters
     
     // Check if there's already a token (from URL parameters processing)
-    const token = localStorage.getItem('easymart-token')
+    const token = getStorageItem('easymart-token')
     const user = localStorage.getItem('easymart-user')
     
     if (token && user) {
@@ -827,7 +897,7 @@ const handleOAuth2Callback = async () => {
             }
             
             // Save JWT token and user
-            localStorage.setItem('easymart-token', tokenInfo.jwt_token)
+            setStorageItem('easymart-token', tokenInfo.jwt_token)
             saveUser(userData)
             
             return { success: true, user: userData }
@@ -862,7 +932,7 @@ const handleOAuth2Callback = async () => {
 // Logout function - sử dụng API AUTH.LOGOUT mới
 const logout = async () => {
   try {
-    const token = localStorage.getItem('easymart-token')
+    const token = getStorageItem('easymart-token')
     
     if (token) {
       // Call new AUTH.LOGOUT API
@@ -881,7 +951,7 @@ const logout = async () => {
     
     // Clean up all local data
     localStorage.removeItem('easymart-user')
-    localStorage.removeItem('easymart-token')
+    removeStorageItem('easymart-token')
     localStorage.removeItem('easymart-user-email')
     localStorage.removeItem('easymart-user-role')
     localStorage.removeItem('easymart-user-id')

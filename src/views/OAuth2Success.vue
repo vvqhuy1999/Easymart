@@ -58,6 +58,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '../composables/useAuth'
 import OAuthConfirmDialog from '../components/OAuthConfirmDialog.vue'
+import { setToken, getToken } from '../utils/tokenStorage'
 
 // Composables
 const router = useRouter()
@@ -153,8 +154,8 @@ onMounted(async () => {
         loginMethod: 'google'
       }
       
-      // Store JWT token and user info
-      localStorage.setItem('easymart-token', token)
+      // Store JWT token and user info using cookie
+      setToken(token)
       localStorage.setItem('easymart-user', JSON.stringify(userData))
       
       // Force reload user state to update UI immediately
@@ -240,7 +241,7 @@ const handleOAuthConfirm = (data) => {
     // Store JWT token and user info
     const token = new URLSearchParams(window.location.search).get('token')
     if (token) {
-      localStorage.setItem('easymart-token', token)
+      setToken(token)
       localStorage.setItem('easymart-user', JSON.stringify(userData))
       
       // Force reload user state to update UI immediately
