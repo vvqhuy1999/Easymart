@@ -12,17 +12,13 @@ export const API_CONFIG = {
     // Token Management
     STATUS: '/api/auth/status',                   // GET - Kiểm tra trạng thái đăng nhập
     VALIDATE_TOKEN: '/api/auth/validate-token',   // POST - Validate JWT token
-    
-    // Admin APIs (optional)
-    BLACKLIST_INFO: '/api/auth/blacklist-info',   // GET - Lấy thông tin blacklist
-    CHECK_BLACKLIST: '/api/auth/check-blacklist'  // POST - Kiểm tra token trong blacklist
+
   },
   
   // 👤 USER MANAGEMENT APIs (NguoiDungRestController) - ⭐ MỚI
   USER: {
     // Registration & User Management
-    REGISTER: '/api/nguoidung/register',          // POST - 🎯 Đăng ký tài khoản mới
-    GET_ALL: '/api/nguoidung',                    // GET - Lấy tất cả người dùng
+    REGISTER: '/api/khachhang/register',          // POST - 🎯 Đăng ký khách hàng với đầy đủ thông tin
     GET_BY_ID: '/api/nguoidung/{maNguoiDung}',    // GET - Lấy người dùng theo ID
     GET_BY_EMAIL: '/api/nguoidung/email/{email}', // GET - Lấy người dùng theo email
     UPDATE: '/api/nguoidung/{maNguoiDung}',       // PUT - Cập nhật thông tin người dùng

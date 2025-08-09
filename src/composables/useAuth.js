@@ -21,6 +21,320 @@ const saveUser = (userData) => {
   window.dispatchEvent(new CustomEvent('user-updated', { detail: userData }))
 }
 
+// Decode JWT token to get user info
+const decodeToken = (token) => {
+  try {
+    if (!token) return null
+    const payload = JSON.parse(atob(token.split('.')[1]))
+    return {
+      // sub là email trong JWT này, không có userId
+      email: payload.sub, // sub chính là email
+      issuer: payload.iss,
+      role: payload.role,
+      exp: payload.exp,
+      iat: payload.iat,
+      // Raw payload để debug
+      raw: payload
+    }
+  } catch (error) {
+    console.error('Error decoding token:', error)
+    return null
+  }
+}
+
+// Check if token is valid and not expired
+const isTokenValid = (token) => {
+  try {
+    if (!token) return false
+    const payload = decodeToken(token)
+    if (!payload) return false
+    
+    // Check expiration
+    const now = Math.floor(Date.now() / 1000)
+    return payload.exp > now
+  } catch (error) {
+    return false
+  }
+}
+
+// Initialize user from token (token-only approach)
+const initUserFromToken = () => {
+  const token = localStorage.getItem('easymart-token')
+  if (!token || !isTokenValid(token)) {
+    // Clear invalid data
+    localStorage.removeItem('easymart-token')
+    localStorage.removeItem('easymart-user')
+    user.value = null
+    return
+  }
+  
+  const tokenData = decodeToken(token)
+  if (tokenData) {
+    // Create user object from token data (limited info since no user details in JWT)
+    const userData = {
+      id: null, // JWT không có ID, sẽ fetch từ server khi cần
+      email: tokenData.email, // sub chính là email
+      name: tokenData.email.split('@')[0], // Extract name from email
+      role: tokenData.role, // KHACH_HANG, etc.
+      loginMethod: 'token',
+      avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(tokenData.email.split('@')[0])}&background=28a745&color=fff`,
+      tokenInfo: {
+        issuer: tokenData.issuer,
+        exp: new Date(tokenData.exp * 1000),
+        iat: new Date(tokenData.iat * 1000)
+      }
+    }
+    
+    // Update reactive state but don't save to localStorage (token is enough)
+    user.value = userData
+    
+    console.log('🔐 User initialized from token:', userData)
+    console.log('🔍 Token payload:', tokenData.raw)
+    
+    // Fetch complete user info in background (non-blocking)
+    setTimeout(async () => {
+      try {
+        console.log('🔄 Fetching complete user info in background...')
+        await ensureUserComplete()
+      } catch (error) {
+        console.warn('⚠️ Could not fetch complete user info in background:', error)
+      }
+    }, 1000) // Delay 1 second to not block initial load
+  }
+}
+
+// Debug function to test current token
+const debugCurrentToken = () => {
+  const token = localStorage.getItem('easymart-token')
+  console.log('🔍 Current token:', token)
+  
+  if (token) {
+    const decoded = decodeToken(token)
+    console.log('📋 Decoded token:', decoded)
+    console.log('✅ Token valid:', isTokenValid(token))
+    
+    if (decoded && decoded.exp) {
+      const expDate = new Date(decoded.exp * 1000)
+      const now = new Date()
+      console.log('⏰ Token expires:', expDate)
+      console.log('🕐 Current time:', now)
+      console.log('⏱️ Time until expiry:', Math.round((expDate - now) / 1000 / 60), 'minutes')
+    }
+  } else {
+    console.log('❌ No token found')
+  }
+}
+
+// Check if token is valid on server (validates expiration, blacklist, etc.)
+const checkTokenValidity = async (token) => {
+  try {
+    if (!token) return false // No token = invalid
+    
+    console.log('🔍 Validating token on server...')
+    
+    // Use validate-token API to check if token is still valid
+    const response = await fetch(`${API_CONFIG.BASE_URL}/api/auth/validate-token`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ token })
+    })
+    
+    console.log('📡 Validate token response status:', response.status)
+    
+    // If validate-token returns non-200, token is invalid
+    if (!response.ok) {
+      console.log('❌ Token validation failed:', response.status, response.statusText)
+      return false // Token is invalid (expired, blacklisted, etc.)
+    }
+    
+    const result = await response.json()
+    console.log('📝 Validate token result:', result)
+    
+    // Check the response format from your backend
+    // Response: { "result": { "valid": true, "role": "KHACH_HANG", "username": "email@example.com", ... } }
+    if (result && result.result && result.result.valid === true) {
+      console.log('✅ Token is valid on server')
+      
+      // If user info is not complete, fetch full user data using email
+      const currentUser = user.value
+      if (!currentUser || !currentUser.id || currentUser.email !== result.result.username) {
+        console.log('🔄 Updating user info from server...')
+        await updateUserFromValidation(result.result)
+      }
+      
+      return true // Token is valid
+    } else {
+      console.log('❌ Token marked as invalid by server')
+      return false // Token is invalid
+    }
+    
+  } catch (error) {
+    console.error('❌ Error validating token:', error)
+    // If we can't validate, assume token is invalid for security
+    return false
+  }
+}
+
+// Update user info from validation result (fetch full user data)
+const updateUserFromValidation = async (validationResult) => {
+  try {
+    const { username: email, role, expiration } = validationResult
+    
+    console.log('🔍 Fetching full user data for:', email)
+    
+    // Get full user info from backend using email
+    const fullUserData = await getUserByEmail(email)
+    
+    if (fullUserData && fullUserData.success && fullUserData.user) {
+      const userData = {
+        id: fullUserData.user.maNguoiDung || fullUserData.user.id,
+        email: email,
+        name: fullUserData.user.tenNguoiDung || fullUserData.user.hoTen || email.split('@')[0],
+        phone: fullUserData.user.soDienThoai || fullUserData.user.sdt || '',
+        address: fullUserData.user.diaChi || '',
+        role: role,
+        avatar: fullUserData.user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(fullUserData.user.tenNguoiDung || email.split('@')[0])}&background=28a745&color=fff`,
+        loginMethod: 'token',
+        tokenInfo: {
+          expiration: new Date(expiration),
+          role: role,
+          lastValidated: new Date()
+        }
+      }
+      
+      // Update reactive user state
+      user.value = userData
+      
+      // Save to localStorage for persistence
+      localStorage.setItem('easymart-user', JSON.stringify(userData))
+      
+      console.log('✅ User info updated from server:', userData)
+      
+      // Dispatch custom event for other components
+      window.dispatchEvent(new CustomEvent('user-updated', { detail: userData }))
+      
+    } else {
+      console.warn('⚠️ Could not fetch full user data, using minimal info from token')
+      
+      // Fallback: create minimal user object from validation result
+      const minimalUser = {
+        id: null, // Will need to be fetched later when needed
+        email: email,
+        name: email.split('@')[0],
+        role: role,
+        loginMethod: 'token',
+        tokenInfo: {
+          expiration: new Date(expiration),
+          role: role,
+          lastValidated: new Date()
+        }
+      }
+      
+      user.value = minimalUser
+      localStorage.setItem('easymart-user', JSON.stringify(minimalUser))
+    }
+    
+  } catch (error) {
+    console.error('❌ Error updating user from validation:', error)
+  }
+}
+
+// Auto-logout if token is invalid (expired, blacklisted, etc.)
+const autoLogoutIfInvalid = async () => {
+  const token = localStorage.getItem('easymart-token')
+  if (!token) {
+    console.log('🔍 Auto-logout check: No token found')
+    return
+  }
+  
+  console.log('🔍 Auto-logout check: Starting validation...')
+  
+  // Check local expiration first (quick local check)
+  if (!isTokenValid(token)) {
+    console.log('🔄 Token expired locally, logging out...')
+    await performAutoLogout('Token đã hết hạn')
+    return
+  }
+  
+  console.log('✅ Token valid locally, validating on server...')
+  
+  // Check server validation (expiration, blacklist, etc.)
+  const isValidOnServer = await checkTokenValidity(token)
+  console.log('🔍 Server validation result:', isValidOnServer)
+  
+  if (!isValidOnServer) {
+    console.log('🚫 Token invalid on server, logging out...')
+    await performAutoLogout('Phiên đăng nhập không hợp lệ')
+  } else {
+    console.log('✅ Token valid on server')
+  }
+}
+
+// Perform auto-logout (helper function)
+const performAutoLogout = async (reason) => {
+  console.log('🚪 Performing auto-logout:', reason)
+  
+  // Clear local data (don't call logout API since token might be invalid)
+  localStorage.removeItem('easymart-token')
+  localStorage.removeItem('easymart-user')
+  user.value = null
+  
+  // Show notification
+  alert(`${reason}. Bạn sẽ được chuyển về trang đăng nhập.`)
+  
+  // Redirect to login
+  window.location.href = '/login'
+}
+
+// Ensure user has complete info (including ID) - call before critical operations
+const ensureUserComplete = async () => {
+  const currentUser = user.value
+  if (!currentUser) {
+    console.warn('⚠️ No user logged in')
+    return null
+  }
+  
+  // If user already has ID, return it
+  if (currentUser.id) {
+    console.log('✅ User already has complete info:', currentUser.id)
+    return currentUser
+  }
+  
+  // If no ID, fetch from server using email
+  if (currentUser.email) {
+    console.log('🔍 Fetching user ID for:', currentUser.email)
+    
+    try {
+      const fullUserData = await getUserByEmail(currentUser.email)
+      
+      if (fullUserData && fullUserData.success && fullUserData.user) {
+        const updatedUser = {
+          ...currentUser,
+          id: fullUserData.user.maNguoiDung || fullUserData.user.id,
+          name: fullUserData.user.tenNguoiDung || fullUserData.user.hoTen || currentUser.name,
+          phone: fullUserData.user.soDienThoai || fullUserData.user.sdt || currentUser.phone || '',
+          address: fullUserData.user.diaChi || currentUser.address || ''
+        }
+        
+        // Update user state
+        user.value = updatedUser
+        localStorage.setItem('easymart-user', JSON.stringify(updatedUser))
+        
+        console.log('✅ User info completed with ID:', updatedUser.id)
+        return updatedUser
+      }
+    } catch (error) {
+      console.error('❌ Error fetching complete user info:', error)
+    }
+  }
+  
+  console.warn('⚠️ Could not complete user info')
+  return currentUser
+}
+
 // Force reload user from localStorage
 const forceReloadUser = () => {
   const savedUser = localStorage.getItem('easymart-user')
@@ -178,7 +492,7 @@ const loginWithFacebook = async (response) => {
 }
 
 // Register function - sử dụng API USER.REGISTER thật
-const register = async (name, email, phone = '', password, confirmPassword) => {
+const register = async (name, email, phone = '', password, confirmPassword, address = '') => {
   try {
     // Validate passwords match
     if (password !== confirmPassword) {
@@ -203,44 +517,51 @@ const register = async (name, email, phone = '', password, confirmPassword) => {
       console.warn('Email check failed, proceeding anyway:', emailCheckError)
     }
     
-    // Call USER.REGISTER API
+    // Call USER.REGISTER API (/api/khachhang/register)
     const registerData = {
       email: email,
       matKhau: password,
-      vaiTro: USER_ROLES.CUSTOMER, // Default role: Customer (3)
-      tenNguoiDung: name
+      hoTen: name,           // Họ tên đầy đủ cho khách hàng
+      sdt: phone || '',      // Số điện thoại (có thể để trống)
+      diaChi: address || ''  // Địa chỉ (có thể để trống)
     }
     
-    // Only add phone if provided
-    if (phone && phone.trim()) {
-      registerData.soDienThoai = phone
-    }
+    console.log('📤 Sending register data:', registerData)
     
     const registerResponse = await apiCall(API_CONFIG.USER.REGISTER, {
       method: 'POST',
       body: JSON.stringify(registerData)
     })
     
-    // registerResponse is the user object directly from backend
-    if (registerResponse && registerResponse.maNguoiDung) {
-      const result = registerResponse
+    console.log('📥 Received register response:', registerResponse)
+    
+    // registerResponse from /api/khachhang/register returns {login_info: {email, message}}
+    if (registerResponse && registerResponse.login_info && registerResponse.login_info.email) {
+      const loginInfo = registerResponse.login_info
+      
+      // Create user data for frontend (minimal info since user hasn't logged in yet)
       const userData = {
-        id: result.maNguoiDung || 'USER_' + Date.now(),
-        name: result.tenNguoiDung || name,
-        email: result.email || email,
-        phone: result.soDienThoai || phone,
+        id: 'CUSTOMER_' + Date.now(), // Will be updated when user logs in
+        name: name,
+        email: loginInfo.email,
+        phone: phone || '',
+        address: address || '',
         avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=28a745&color=fff`,
-        joinDate: result.ngayTao || new Date().toISOString().split('T')[0],
-        totalOrders: result.tongDonHang || 0,
-        totalSpent: result.tongChiTieu || 0,
-        role: getRoleString(result.vaiTro) || 'USER',
+        joinDate: new Date().toISOString().split('T')[0],
+        totalOrders: 0,
+        totalSpent: 0,
+        role: 'USER',
         loginMethod: 'traditional'
       }
       
-      saveUser(userData)
-      return { success: true, user: userData }
+      // Note: Don't auto-login, let user login manually for security
+      return { 
+        success: true, 
+        user: userData, 
+        message: loginInfo.message || 'Đăng ký thành công! Vui lòng đăng nhập để tiếp tục.'
+      }
     } else {
-      return { success: false, error: 'Đăng ký thất bại - Không nhận được dữ liệu user từ server' }
+      return { success: false, error: 'Đăng ký thất bại - Không nhận được thông tin xác nhận từ server' }
     }
     
   } catch (error) {
@@ -609,6 +930,16 @@ export function useAuth() {
     checkOAuth2Sub,
     checkAuthStatus,
     validateToken,
-    handleOAuth2Callback
+    handleOAuth2Callback,
+    // Token utilities
+    decodeToken,
+    isTokenValid,
+    initUserFromToken,
+    debugCurrentToken,
+    checkTokenValidity,
+    autoLogoutIfInvalid,
+    performAutoLogout,
+    updateUserFromValidation,
+    ensureUserComplete
   }
 }

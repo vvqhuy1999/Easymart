@@ -42,6 +42,8 @@
         <i class="fas fa-gift"></i>
       </button>
     </Transition>
+
+
   </div>
 </template>
 
@@ -69,6 +71,7 @@ import HeroCarousel from '../components/HeroCarousel.vue'
 import DailyDeals from '../components/DailyDeals.vue'
 import CategorySection from '../components/CategorySection.vue'
 import CouponButtonWidget from '../components/CouponButtonWidget.vue'
+
 
 // Router instance
 const router = useRouter()

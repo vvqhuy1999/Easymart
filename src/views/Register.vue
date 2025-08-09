@@ -34,7 +34,7 @@
                 id="name" 
                 required 
                 autocomplete="name"
-                placeholder="Nhập họ và tên"
+                placeholder="Nhập họ và tên của bạn"
               >
             </div>
           </div>
@@ -50,6 +50,35 @@
                 required 
                 autocomplete="username"
                 placeholder="Nhập email của bạn"
+              >
+            </div>
+          </div>
+          <div class="mb-3">
+            <label for="phone" class="form-label">Số điện thoại</label>
+            <div class="input-group">
+              <span class="input-group-text"><i class="fas fa-phone"></i></span>
+              <input 
+                v-model="phone" 
+                type="tel" 
+                class="form-control" 
+                id="phone" 
+                required 
+                autocomplete="tel"
+                placeholder="0123456789"
+              >
+            </div>
+          </div>
+          <div class="mb-3">
+            <label for="address" class="form-label">Địa chỉ</label>
+            <div class="input-group">
+              <span class="input-group-text"><i class="fas fa-map-marker-alt"></i></span>
+              <input 
+                v-model="address" 
+                type="text" 
+                class="form-control" 
+                id="address" 
+                autocomplete="address-line1"
+                placeholder="Nhập địa chỉ (tùy chọn)"
               >
             </div>
           </div>
@@ -160,6 +189,8 @@ const { register, registerWithGoogle, registerWithFacebook, handleOAuth2Callback
 // Form data
 const name = ref('')
 const email = ref('')
+const phone = ref('')
+const address = ref('')
 const password = ref('')
 const confirmPassword = ref('')
 const agreeTerms = ref(false)
@@ -219,6 +250,8 @@ onMounted(async () => {
         const payload = JSON.parse(atob(pendingCredential.split('.')[1]))
         name.value = payload.name || ''
         email.value = payload.email || ''
+        phone.value = payload.phone || ''
+        address.value = payload.address || ''
         
         // Show info message
         success.value = 'Thông tin từ Google đã được điền sẵn. Nhấn đăng ký với Google để tiếp tục.'
@@ -240,6 +273,8 @@ onMounted(async () => {
         const payload = JSON.parse(atob(pendingCredential.split('.')[1]))
         name.value = payload.name || ''
         email.value = payload.email || ''
+        phone.value = payload.phone || ''
+        address.value = payload.address || ''
         
         // Show info message
         success.value = 'Thông tin từ Facebook đã được điền sẵn. Nhấn đăng ký với Facebook để tiếp tục.'
@@ -260,6 +295,8 @@ onMounted(async () => {
         const userInfo = JSON.parse(pendingUserInfo)
         name.value = userInfo.name || ''
         email.value = userInfo.email || ''
+        phone.value = userInfo.phone || ''
+        address.value = userInfo.address || ''
         
         // Show info message
         success.value = 'Thông tin từ OAuth đã được điền sẵn. Vui lòng hoàn tất đăng ký.'
@@ -283,9 +320,13 @@ async function handleRegister() {
     error.value = 'Mật khẩu không khớp!'
     return
   }
-  
 
-  
+  // Validate phone number format (Vietnamese phone numbers)
+  if (phone.value && !/^[0-9]{10,11}$/.test(phone.value.replace(/\s/g, ''))) {
+    error.value = 'Số điện thoại không hợp lệ! Vui lòng nhập 10-11 chữ số.'
+    return
+  }
+
   if (!agreeTerms.value) {
     error.value = 'Vui lòng đồng ý với điều khoản sử dụng!'
     return
@@ -294,14 +335,14 @@ async function handleRegister() {
   isLoading.value = true
   
   try {
-    const result = await register(name.value, email.value, '', password.value, confirmPassword.value)
+    const result = await register(name.value, email.value, phone.value, password.value, confirmPassword.value, address.value)
     
     if (result.success) {
-      success.value = `Chào mừng ${result.user.name}! Đăng ký thành công. Đang chuyển hướng...`
+      success.value = result.message || `Đăng ký thành công! Vui lòng đăng nhập để tiếp tục.`
       
-      // Redirect after success message
+      // Redirect to login page after success message
       setTimeout(() => {
-        router.push('/')
+        router.push('/login')
       }, 2000)
     } else {
       error.value = result.error || 'Đăng ký thất bại'
