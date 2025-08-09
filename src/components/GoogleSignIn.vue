@@ -1,45 +1,29 @@
 <template>
   <div class="google-signin-wrapper">
-    <!-- Divider -->
-    <div class="text-center my-3">
-      <div class="position-relative">
-        <hr class="my-3">
-        <span class="position-absolute top-50 start-50 translate-middle bg-white px-3 text-muted">
-          {{ dividerText }}
-        </span>
-      </div>
-    </div>
-    
     <!-- Google Sign-In Button -->
     <div class="d-grid">
-      <GoogleLogin 
-        :callback="handleGoogleCallback"
-        prompt
-        auto-login
-        class="google-signin-btn"
+      <button 
+        type="button" 
+        class="btn btn-outline-danger w-100 fw-bold google-signin-btn" 
+        :disabled="loading"
+        @click="handleDirectGoogleLogin"
       >
-        <button type="button" class="btn btn-outline-danger w-100 fw-bold" :disabled="loading">
-          <span v-if="loading" class="spinner-border spinner-border-sm me-2" role="status"></span>
-          <i v-else class="fab fa-google me-2"></i>
-          {{ loading ? 'Đang xử lý...' : buttonText }}
-        </button>
-      </GoogleLogin>
+        <span v-if="loading" class="spinner-border spinner-border-sm me-2" role="status"></span>
+        <i v-else class="fab fa-google me-2"></i>
+        {{ loading ? 'Đang xử lý...' : buttonText }}
+      </button>
     </div>
   </div>
 </template>
 
 <script setup>
-import { GoogleLogin } from 'vue3-google-login'
+import { API_CONFIG, getApiUrl } from '../config/api'
 
 // Props
 const props = defineProps({
   buttonText: {
     type: String,
     default: 'Đăng nhập với Google'
-  },
-  dividerText: {
-    type: String,
-    default: 'hoặc'
   },
   loading: {
     type: Boolean,
@@ -50,20 +34,41 @@ const props = defineProps({
 // Emits
 const emit = defineEmits(['google-login'])
 
-// Handle Google callback
-const handleGoogleCallback = (response) => {
-  emit('google-login', response)
+// Handle direct Google login - redirect to backend OAuth2
+const handleDirectGoogleLogin = () => {
+  console.log('Direct Google login clicked')
+  
+  // Emit loading state
+  emit('google-login', { 
+    success: true, 
+    redirect: true, 
+    message: 'Đang chuyển hướng tới Google OAuth2...' 
+  })
+  
+  // Store current frontend URL để backend có thể redirect về đúng chỗ
+  const frontendRedirectUrl = window.location.origin + window.location.pathname
+  sessionStorage.setItem('oauth2-frontend-redirect', frontendRedirectUrl)
+  
+  // Get Google OAuth2 authorization URL from backend  
+  const googleAuthUrl = getApiUrl(API_CONFIG.AUTHORIZATION.GOOGLE)
+  console.log('Redirecting to Google OAuth2:', googleAuthUrl)
+  console.log('Frontend redirect URL stored:', frontendRedirectUrl)
+  
+  // Redirect to backend OAuth2 endpoint
+  setTimeout(() => {
+    window.location.href = googleAuthUrl
+  }, 500)
 }
 </script>
 
 <style scoped>
-.google-signin-btn .btn-outline-danger {
+.google-signin-btn {
   border-color: #db4437;
   color: #db4437;
   transition: all 0.3s ease;
 }
 
-.google-signin-btn .btn-outline-danger:hover:not(:disabled) {
+.google-signin-btn:hover:not(:disabled) {
   background-color: #db4437;
   border-color: #db4437;
   color: white;
@@ -71,11 +76,11 @@ const handleGoogleCallback = (response) => {
   box-shadow: 0 4px 8px rgba(219, 68, 55, 0.3);
 }
 
-.google-signin-btn .btn-outline-danger:focus {
+.google-signin-btn:focus {
   box-shadow: 0 0 0 0.2rem rgba(219, 68, 55, 0.25);
 }
 
-.google-signin-btn .btn-outline-danger:disabled {
+.google-signin-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }

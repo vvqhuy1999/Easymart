@@ -133,6 +133,15 @@ const routes = [
     }
   },
   {
+    path: '/oauth2/success',
+    name: 'OAuth2Success',
+    component: () => import('../views/OAuth2Success.vue'),
+    meta: {
+      title: 'Đăng nhập thành công - EasyMart',
+      description: 'Đang xử lý đăng nhập OAuth2...'
+    }
+  },
+  {
     // Redirect các route không tồn tại về trang chủ
     path: '/:pathMatch(.*)*',
     name: 'NotFound',

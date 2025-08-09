@@ -13,8 +13,8 @@ import '@fortawesome/fontawesome-free/css/all.min.css'
 // Import custom styles
 import './assets/styles.css'
 
-// Import Google Login
-import vue3GoogleLogin from 'vue3-google-login'
+// Import API Client for token management
+import { startTokenAutoRefresh, isTokenValid } from './utils/apiClient'
 
 // Create app
 const app = createApp(App)
@@ -22,10 +22,11 @@ const app = createApp(App)
 // Use router
 app.use(router)
 
-// Configure Google Login
-app.use(vue3GoogleLogin, {
-  clientId: '1234567890-abcdefghijklmnopqrstuvwxyz.apps.googleusercontent.com' // Replace with your actual Google Client ID
-})
+// Start token auto-refresh if user is logged in
+if (isTokenValid()) {
+  console.log('Starting JWT token auto-refresh...')
+  startTokenAutoRefresh()
+}
 
 // Mount app
 app.mount('#app')

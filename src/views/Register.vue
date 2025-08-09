@@ -137,17 +137,20 @@
           </div>
         </div>
         
-        <!-- Google Register Button -->
+        <!-- Social Register Buttons -->
         <div class="mb-3" :class="{ 'd-none': isLoading }">
-          <GoogleLogin 
-            :callback="handleGoogleRegister"
-            class="w-100"
-          >
-            <button type="button" class="btn btn-outline-danger w-100 fw-bold">
-              <i class="fab fa-google me-2"></i>
-              Đăng ký với Google
-            </button>
-          </GoogleLogin>
+          <GoogleSignIn 
+            button-text="Đăng ký với Google"
+            :loading="isLoading"
+            @google-login="handleGoogleRegister"
+          />
+        </div>
+        <div class="mb-3" :class="{ 'd-none': isLoading }">
+          <FacebookSignIn 
+            button-text="Đăng ký với Facebook"
+            :loading="isLoading"
+            @facebook-login="handleFacebookRegister"
+          />
         </div>
         
         <div class="text-center mt-3" :class="{ 'd-none': isLoading }">
@@ -160,14 +163,16 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '../composables/useAuth'
-import { GoogleLogin } from 'vue3-google-login'
+import GoogleSignIn from '../components/GoogleSignIn.vue'
+import FacebookSignIn from '../components/FacebookSignIn.vue'
+import { API_CONFIG, getApiUrl } from '../config/api'
 
 // Composables
 const router = useRouter()
-const { register, registerWithGoogle } = useAuth()
+const { register, registerWithGoogle, registerWithFacebook, handleOAuth2Callback } = useAuth()
 
 // Form data
 const name = ref('')
@@ -183,6 +188,108 @@ const showConfirmPassword = ref(false)
 const isLoading = ref(false)
 const error = ref('')
 const success = ref('')
+
+// Check if there's a pending social registration or OAuth2 callback
+onMounted(async () => {
+  const urlParams = new URLSearchParams(window.location.search)
+  const googlePending = urlParams.get('google')
+  const facebookPending = urlParams.get('facebook')
+  const oauthPending = urlParams.get('oauth')
+  const code = urlParams.get('code')
+  
+  // Handle OAuth2 callback
+  if (code) {
+    console.log('Detected OAuth2 callback in Register with code:', code)
+    isLoading.value = true
+    success.value = 'Đang xử lý đăng ký OAuth2...'
+    
+    try {
+      const result = await handleOAuth2Callback()
+      
+      if (result && result.success) {
+        success.value = `Chào mừng ${result.user.name}! Đăng ký thành công. Đang chuyển hướng...`
+        
+        // Clear URL parameters
+        window.history.replaceState({}, document.title, window.location.pathname)
+        
+        // Redirect after success message
+        setTimeout(() => {
+          router.push('/')
+        }, 2000)
+      } else if (result && !result.success) {
+        error.value = result.error || 'OAuth2 callback thất bại'
+      }
+    } catch (err) {
+      console.error('OAuth2 callback error in Register:', err)
+      error.value = 'Có lỗi xảy ra khi xử lý OAuth2 callback'
+    } finally {
+      isLoading.value = false
+    }
+    return
+  }
+  
+  // Handle pending Google registration from Login redirect
+  if (googlePending === 'pending') {
+    const pendingCredential = sessionStorage.getItem('pending-google-credential')
+    if (pendingCredential) {
+      // Auto-fill with Google info and show message
+      try {
+        const payload = JSON.parse(atob(pendingCredential.split('.')[1]))
+        name.value = payload.name || ''
+        email.value = payload.email || ''
+        
+        // Show info message
+        success.value = 'Thông tin từ Google đã được điền sẵn. Nhấn đăng ký với Google để tiếp tục.'
+        
+        sessionStorage.removeItem('pending-google-credential')
+      } catch (err) {
+        console.error('Error processing pending Google credential:', err)
+        sessionStorage.removeItem('pending-google-credential')
+      }
+    }
+  }
+  
+  // Handle pending Facebook registration from Login redirect
+  if (facebookPending === 'pending') {
+    const pendingCredential = sessionStorage.getItem('pending-facebook-credential')
+    if (pendingCredential) {
+      // Auto-fill with Facebook info and show message
+      try {
+        const payload = JSON.parse(atob(pendingCredential.split('.')[1]))
+        name.value = payload.name || ''
+        email.value = payload.email || ''
+        
+        // Show info message
+        success.value = 'Thông tin từ Facebook đã được điền sẵn. Nhấn đăng ký với Facebook để tiếp tục.'
+        
+        sessionStorage.removeItem('pending-facebook-credential')
+      } catch (err) {
+        console.error('Error processing pending Facebook credential:', err)
+        sessionStorage.removeItem('pending-facebook-credential')
+      }
+    }
+  }
+  
+  // Handle pending OAuth registration from Login redirect
+  if (oauthPending === 'pending') {
+    const pendingUserInfo = sessionStorage.getItem('pending-oauth-user-info')
+    if (pendingUserInfo) {
+      try {
+        const userInfo = JSON.parse(pendingUserInfo)
+        name.value = userInfo.name || ''
+        email.value = userInfo.email || ''
+        
+        // Show info message
+        success.value = 'Thông tin từ OAuth đã được điền sẵn. Vui lòng hoàn tất đăng ký.'
+        
+        sessionStorage.removeItem('pending-oauth-user-info')
+      } catch (err) {
+        console.error('Error processing pending OAuth user info:', err)
+        sessionStorage.removeItem('pending-oauth-user-info')
+      }
+    }
+  }
+})
 
 async function handleRegister() {
   // Clear previous messages
@@ -233,25 +340,101 @@ async function handleGoogleRegister(response) {
   // Clear previous messages
   error.value = ''
   success.value = ''
-  isLoading.value = true
   
   try {
-    const result = await registerWithGoogle(response.credential)
+    // Check if response is valid
+    if (!response.success) {
+      error.value = response.error || 'Đăng ký với Google thất bại'
+      return
+    }
+
+    // If this is a redirect response, show loading and redirect
+    if (response.redirect) {
+      success.value = response.message || 'Đang chuyển hướng tới Google OAuth2...'
+      isLoading.value = true
+      // Don't set isLoading to false since we're redirecting
+      return
+    }
+
+    // Handle other cases (if any)
+    const result = await registerWithGoogle(response)
     
     if (result.success) {
-      success.value = `Chào mừng ${result.user.name}! Đăng ký thành công. Đang chuyển hướng...`
-      
-      // Redirect after success message
-      setTimeout(() => {
-        router.push('/')
-      }, 2000)
+      if (result.redirect) {
+        // Đang redirect tới Google OAuth2, hiển thị loading message
+        success.value = result.message || 'Đang chuyển hướng tới Google OAuth2...'
+        isLoading.value = true
+        // Không tắt isLoading vì đang redirect
+        return
+      } else if (result.user) {
+        success.value = `Chào mừng ${result.user.name}! Đăng ký thành công. Đang chuyển hướng...`
+        
+        // Redirect after success message
+        setTimeout(() => {
+          router.push('/')
+        }, 2000)
+      }
     } else {
       error.value = result.error || 'Đăng ký với Google thất bại'
     }
   } catch (err) {
+    console.error('Google register error:', err)
     error.value = 'Có lỗi xảy ra, vui lòng thử lại'
   } finally {
-    isLoading.value = false
+    if (!success.value.includes('chuyển hướng tới Google OAuth2')) {
+      isLoading.value = false
+    }
+  }
+}
+
+async function handleFacebookRegister(response) {
+  // Clear previous messages
+  error.value = ''
+  success.value = ''
+  
+  try {
+    // Check if response is valid
+    if (!response.success) {
+      error.value = response.error || 'Đăng ký với Facebook thất bại'
+      return
+    }
+
+    // If this is a redirect response, show loading and redirect
+    if (response.redirect) {
+      success.value = response.message || 'Đang chuyển hướng tới Facebook OAuth2...'
+      isLoading.value = true
+      // Don't set isLoading to false since we're redirecting
+      return
+    }
+
+    // Handle other cases (if any)
+    const result = await registerWithFacebook(response)
+    
+    if (result.success) {
+      if (result.redirect) {
+        // Đang redirect tới Facebook OAuth2, hiển thị loading message
+        success.value = result.message || 'Đang chuyển hướng tới Facebook OAuth2...'
+        isLoading.value = true
+        // Không tắt isLoading vì đang redirect
+        return
+      } else if (result.user) {
+        success.value = `Chào mừng ${result.user.name}! Đăng ký thành công. Đang chuyển hướng...`
+        
+        // Redirect after success message
+        setTimeout(() => {
+          router.push('/')
+        }, 2000)
+      }
+    } else {
+      error.value = result.error || 'Đăng ký với Facebook thất bại'
+    }
+  } catch (err) {
+    console.error('Facebook register error:', err)
+    error.value = 'Có lỗi xảy ra, vui lòng thử lại'
+  } finally {
+    if (!success.value.includes('chuyển hướng tới Facebook OAuth2')) {
+      isLoading.value = false
+    }
   }
 }
 </script>
