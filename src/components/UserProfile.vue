@@ -73,7 +73,7 @@ const error = ref('')
 const userProfile = ref(null)
 
 // Composables
-const { user } = useAuth()
+const { user, getUserByEmail } = useAuth()
 
 // Load user profile on mount
 onMounted(() => {
@@ -93,19 +93,56 @@ const loadUserProfile = async () => {
     
     // Then try to get fresh data from API
     try {
-      const response = await apiCall('/api/oauth2/user-info')
-      if (response.success) {
-        // Update with fresh data from API
-        const freshData = response.result
-        userProfile.value = {
-          ...userProfile.value,
-          id: freshData.maNguoiDung || userProfile.value.id,
-          name: freshData.tenNguoiDung || userProfile.value.name,
-          email: freshData.email || userProfile.value.email,
-          phone: freshData.soDienThoai || userProfile.value.phone,
-          role: freshData.vaiTro || userProfile.value.role,
-          totalOrders: freshData.tongDonHang || userProfile.value.totalOrders,
-          totalSpent: freshData.tongChiTieu || userProfile.value.totalSpent
+      // Try USER API first (for traditional accounts)
+      if (user.value?.email && user.value?.loginMethod === 'traditional') {
+        try {
+          const userResponse = await getUserByEmail(user.value.email)
+          if (userResponse.success && userResponse.result) {
+            const freshData = userResponse.result
+            userProfile.value = {
+              ...userProfile.value,
+              id: freshData.maNguoiDung || userProfile.value.id,
+              name: freshData.tenNguoiDung || userProfile.value.name,
+              email: freshData.email || userProfile.value.email,
+              phone: freshData.soDienThoai || userProfile.value.phone,
+              role: freshData.vaiTro || userProfile.value.role,
+              totalOrders: freshData.tongDonHang || userProfile.value.totalOrders,
+              totalSpent: freshData.tongChiTieu || userProfile.value.totalSpent
+            }
+          }
+        } catch (userError) {
+          console.warn('USER API failed, trying OAuth2 API:', userError)
+          // Fallback to OAuth2 API
+          const response = await apiCall('/api/oauth2/user-info')
+          if (response.success) {
+            const freshData = response.result
+            userProfile.value = {
+              ...userProfile.value,
+              id: freshData.maNguoiDung || userProfile.value.id,
+              name: freshData.tenNguoiDung || userProfile.value.name,
+              email: freshData.email || userProfile.value.email,
+              phone: freshData.soDienThoai || userProfile.value.phone,
+              role: freshData.vaiTro || userProfile.value.role,
+              totalOrders: freshData.tongDonHang || userProfile.value.totalOrders,
+              totalSpent: freshData.tongChiTieu || userProfile.value.totalSpent
+            }
+          }
+        }
+      } else {
+        // For OAuth2 accounts, use OAuth2 API
+        const response = await apiCall('/api/oauth2/user-info')
+        if (response.success) {
+          const freshData = response.result
+          userProfile.value = {
+            ...userProfile.value,
+            id: freshData.maNguoiDung || userProfile.value.id,
+            name: freshData.tenNguoiDung || userProfile.value.name,
+            email: freshData.email || userProfile.value.email,
+            phone: freshData.soDienThoai || userProfile.value.phone,
+            role: freshData.vaiTro || userProfile.value.role,
+            totalOrders: freshData.tongDonHang || userProfile.value.totalOrders,
+            totalSpent: freshData.tongChiTieu || userProfile.value.totalSpent
+          }
         }
       }
     } catch (apiError) {
@@ -126,14 +163,19 @@ const refreshProfile = () => {
   loadUserProfile()
 }
 
-// Test API call
+// Test API call - sử dụng AUTH.STATUS API mới
 const testAPI = async () => {
   try {
     loading.value = true
     error.value = ''
     
     console.log('Testing API call...')
-    const response = await apiCall('/api/oauth2/analyze')
+    const response = await apiCall('/api/auth/status', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('easymart-token')}`
+      }
+    })
     
     if (response.success) {
       console.log('✅ API test successful:', response.result)

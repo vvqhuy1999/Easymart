@@ -61,7 +61,7 @@ import OAuthConfirmDialog from '../components/OAuthConfirmDialog.vue'
 
 // Composables
 const router = useRouter()
-const { handleOAuth2Callback } = useAuth()
+const { handleOAuth2Callback, forceReloadUser } = useAuth()
 
 // UI states
 const isLoading = ref(true)
@@ -157,6 +157,9 @@ onMounted(async () => {
       localStorage.setItem('easymart-token', token)
       localStorage.setItem('easymart-user', JSON.stringify(userData))
       
+      // Force reload user state to update UI immediately
+      forceReloadUser()
+      
       isLoading.value = false
       success.value = true
       successMessage.value = `Chào mừng ${userData.name}!`
@@ -239,6 +242,9 @@ const handleOAuthConfirm = (data) => {
     if (token) {
       localStorage.setItem('easymart-token', token)
       localStorage.setItem('easymart-user', JSON.stringify(userData))
+      
+      // Force reload user state to update UI immediately
+      forceReloadUser()
     }
     
     // Show success and redirect

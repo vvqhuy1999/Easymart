@@ -54,23 +54,6 @@
             </div>
           </div>
           <div class="mb-3">
-            <label for="phone" class="form-label">Số điện thoại</label>
-            <div class="input-group">
-              <span class="input-group-text"><i class="fas fa-phone"></i></span>
-              <input 
-                v-model="phone" 
-                type="tel" 
-                class="form-control" 
-                id="phone" 
-                required 
-                autocomplete="tel"
-                placeholder="Nhập số điện thoại"
-                pattern="[0-9]{10,11}"
-                title="Số điện thoại phải có 10-11 chữ số"
-              >
-            </div>
-          </div>
-          <div class="mb-3">
             <label for="password" class="form-label">Mật khẩu</label>
             <div class="input-group">
               <span class="input-group-text"><i class="fas fa-lock"></i></span>
@@ -177,7 +160,6 @@ const { register, registerWithGoogle, registerWithFacebook, handleOAuth2Callback
 // Form data
 const name = ref('')
 const email = ref('')
-const phone = ref('')
 const password = ref('')
 const confirmPassword = ref('')
 const agreeTerms = ref(false)
@@ -302,12 +284,7 @@ async function handleRegister() {
     return
   }
   
-  // Validate phone number
-  const phoneRegex = /^[0-9]{10,11}$/
-  if (!phoneRegex.test(phone.value)) {
-    error.value = 'Số điện thoại phải có 10-11 chữ số!'
-    return
-  }
+
   
   if (!agreeTerms.value) {
     error.value = 'Vui lòng đồng ý với điều khoản sử dụng!'
@@ -317,7 +294,7 @@ async function handleRegister() {
   isLoading.value = true
   
   try {
-    const result = await register(name.value, email.value, phone.value, password.value, confirmPassword.value)
+    const result = await register(name.value, email.value, '', password.value, confirmPassword.value)
     
     if (result.success) {
       success.value = `Chào mừng ${result.user.name}! Đăng ký thành công. Đang chuyển hướng...`

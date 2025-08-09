@@ -188,7 +188,7 @@ const props = defineProps({
 const emit = defineEmits(['update-search', 'add-to-cart'])
 
 // Composables
-const { user, isLoggedIn, logout } = useAuth()
+const { user, isLoggedIn, logout, forceReloadUser } = useAuth()
 const router = useRouter()
 
 // ==================== REACTIVE STATE ====================
@@ -444,12 +444,25 @@ const throttledHandleScroll = () => {
 }
 
 /**
- * Xử lý logout
+ * Xử lý logout - sử dụng logout async function mới
  */
-const handleLogout = () => {
-  logout()
-  showAccountDropdown.value = false
-  router.push('/')
+const handleLogout = async () => {
+  try {
+    const result = await logout()
+    showAccountDropdown.value = false
+    
+    if (result.success) {
+      router.push('/')
+    } else {
+      console.warn('Logout warning:', result.error)
+      // Vẫn redirect về home vì local data đã được xóa
+      router.push('/')
+    }
+  } catch (error) {
+    console.error('Logout error:', error)
+    // Force redirect về home
+    router.push('/')
+  }
 }
 
 // ==================== LIFECYCLE HOOKS ====================
@@ -457,6 +470,13 @@ onMounted(() => {
   document.addEventListener('click', handleOutsideClick)
   window.addEventListener('scroll', throttledHandleScroll, { passive: true })
   window.addEventListener('resize', handleResize, { passive: true })
+  
+  // Listen for user updates from OAuth flow
+  window.addEventListener('user-updated', () => {
+    console.log('🔄 User updated event received, forcing reload')
+    forceReloadUser()
+  })
+  
   handleScroll()
 })
 
@@ -464,6 +484,7 @@ onUnmounted(() => {
   document.removeEventListener('click', handleOutsideClick)
   window.removeEventListener('scroll', throttledHandleScroll)
   window.removeEventListener('resize', handleResize)
+  window.removeEventListener('user-updated', forceReloadUser)
   
   // Clear timers
   if (categoryHoverTimer.value) {

@@ -105,7 +105,7 @@ export async function autoRefreshToken() {
     if (timeUntilExpiry < 300 && timeUntilExpiry > 0) {
       console.log('Token expiring soon, attempting refresh...')
       
-      const response = await apiCall('/api/oauth2/get-token')
+      const response = await apiCall('/api/oauth2/get-jwt-token')
       if (response.success && response.result.jwt_token) {
         localStorage.setItem('easymart-token', response.result.jwt_token)
         console.log('✅ Token refreshed successfully')

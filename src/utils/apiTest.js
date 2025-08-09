@@ -8,17 +8,25 @@ export const testAllOAuth2APIs = async () => {
   const { 
     testOAuth2Config, 
     checkEmailDuplicate, 
+    checkUserEmailExists,
+    getUserByEmail,
     checkOAuth2Sub, 
     getJWTToken, 
-    getUserInfo 
+    getUserInfo,
+    checkAuthStatus,
+    validateToken
   } = useAuth()
   
   const results = {
     config: null,
     emailCheck: null,
+    userEmailCheck: null,
+    userByEmail: null,
     subCheck: null,
     token: null,
-    userInfo: null
+    userInfo: null,
+    authStatus: null,
+    tokenValidation: null
   }
   
   try {
@@ -37,6 +45,24 @@ export const testAllOAuth2APIs = async () => {
   } catch (error) {
     console.error('❌ Email Check Test Failed:', error)
     results.emailCheck = { error: error.message }
+  }
+  
+  try {
+    console.log('🧪 Testing User Email Exists Check...')
+    results.userEmailCheck = await checkUserEmailExists('test@example.com')
+    console.log('✅ User Email Check Test:', results.userEmailCheck)
+  } catch (error) {
+    console.error('❌ User Email Check Test Failed:', error)
+    results.userEmailCheck = { error: error.message }
+  }
+  
+  try {
+    console.log('🧪 Testing Get User by Email...')
+    results.userByEmail = await getUserByEmail('demo@easymart.vn')
+    console.log('✅ Get User by Email Test:', results.userByEmail)
+  } catch (error) {
+    console.error('❌ Get User by Email Test Failed:', error)
+    results.userByEmail = { error: error.message }
   }
   
   try {
@@ -64,6 +90,29 @@ export const testAllOAuth2APIs = async () => {
   } catch (error) {
     console.error('❌ User Info Test Failed:', error)
     results.userInfo = { error: error.message }
+  }
+  
+  try {
+    console.log('🧪 Testing Auth Status...')
+    results.authStatus = await checkAuthStatus()
+    console.log('✅ Auth Status Test:', results.authStatus)
+  } catch (error) {
+    console.error('❌ Auth Status Test Failed:', error)
+    results.authStatus = { error: error.message }
+  }
+  
+  try {
+    console.log('🧪 Testing Token Validation...')
+    const token = localStorage.getItem('easymart-token')
+    if (token) {
+      results.tokenValidation = await validateToken(token)
+      console.log('✅ Token Validation Test:', results.tokenValidation)
+    } else {
+      results.tokenValidation = { error: 'No token to validate' }
+    }
+  } catch (error) {
+    console.error('❌ Token Validation Test Failed:', error)
+    results.tokenValidation = { error: error.message }
   }
   
   return results

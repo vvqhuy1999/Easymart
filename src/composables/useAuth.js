@@ -1,5 +1,5 @@
 import { ref, computed } from 'vue'
-import { API_CONFIG, getApiUrl } from '../config/api.js'
+import { API_CONFIG, getApiUrl, getApiUrlWithParams, USER_ROLES } from '../config/api.js'
 
 // Global state - singleton pattern
 const user = ref(null)
@@ -17,6 +17,17 @@ const loadUser = () => {
 const saveUser = (userData) => {
   localStorage.setItem('easymart-user', JSON.stringify(userData))
   user.value = userData
+  // Trigger a custom event to notify other components
+  window.dispatchEvent(new CustomEvent('user-updated', { detail: userData }))
+}
+
+// Force reload user from localStorage
+const forceReloadUser = () => {
+  const savedUser = localStorage.getItem('easymart-user')
+  if (savedUser) {
+    user.value = JSON.parse(savedUser)
+    window.dispatchEvent(new CustomEvent('user-updated', { detail: user.value }))
+  }
 }
 
 // Helper function to make API calls
@@ -41,12 +52,11 @@ const apiCall = async (endpoint, options = {}) => {
   }
 }
 
-// Traditional login function - sử dụng demo account theo HTML test
+// Traditional login function - sử dụng API AUTH.LOGIN mới
 const login = async (email, password) => {
   try {
-    // Simulate demo login như trong HTML test
+    // Simulate demo login cho demo account
     if (email === 'demo@easymart.vn') {
-      // Mock successful login cho demo account
       const userData = {
         id: 'DEMO_USER',
         name: 'Demo User',
@@ -64,34 +74,48 @@ const login = async (email, password) => {
       return { success: true, user: userData }
     }
     
-    // For other emails, try to get JWT token first to authenticate
+    // Call new AUTH.LOGIN API
     try {
-      const tokenResponse = await apiCall(API_CONFIG.OAUTH2.GET_TOKEN)
-      if (tokenResponse.success) {
-        // If we have a valid session, create user from token info
+      const loginResponse = await apiCall(API_CONFIG.AUTH.LOGIN, {
+        method: 'POST',
+        body: JSON.stringify({ 
+          email: email, 
+          matKhau: password 
+        })
+      })
+      
+      // loginResponse has structure: { result: { authenticated: true, message: "...", token: "..." } }
+      if (loginResponse && loginResponse.result && loginResponse.result.authenticated) {
+        const result = loginResponse.result
+        
+        // Save JWT token
+        if (result.token) {
+          localStorage.setItem('easymart-token', result.token)
+        }
+        
+        // For traditional login, we need to get user info separately or create basic user data
         const userData = {
-          id: tokenResponse.result.user_info?.maNguoiDung || 'USER_' + Date.now(),
-          name: tokenResponse.result.user_info?.tenNguoiDung || email.split('@')[0],
-          email: tokenResponse.result.user_email || email,
-          phone: tokenResponse.result.user_info?.soDienThoai || '',
-          avatar: `https://ui-avatars.com/api/?name=${tokenResponse.result.user_info?.tenNguoiDung || email.split('@')[0]}&background=007bff&color=fff`,
+          id: 'USER_' + Date.now(), // Will be updated when we get user info
+          name: email.split('@')[0], // Basic name from email
+          email: email,
+          phone: '',
+          avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(email.split('@')[0])}&background=007bff&color=fff`,
           joinDate: new Date().toISOString().split('T')[0],
           totalOrders: 0,
           totalSpent: 0,
-          role: tokenResponse.result.user_role || 'USER',
+          role: 'USER',
           loginMethod: 'traditional'
         }
         
-        localStorage.setItem('easymart-token', tokenResponse.result.jwt_token)
         saveUser(userData)
-        return { success: true, user: userData }
+        return { success: true, user: userData, message: result.message }
+      } else {
+        return { success: false, error: loginResponse?.result?.message || 'Email hoặc mật khẩu không đúng' }
       }
-    } catch (tokenError) {
-      console.log('No existing session found')
+    } catch (apiError) {
+      console.error('Login API error:', apiError)
+      return { success: false, error: 'Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.' }
     }
-    
-    // If no session exists, return error for non-demo accounts
-    return { success: false, error: 'Email hoặc mật khẩu không đúng. Hãy thử tài khoản demo: demo@easymart.vn' }
     
   } catch (error) {
     console.error('Login error:', error)
@@ -153,42 +177,71 @@ const loginWithFacebook = async (response) => {
   }
 }
 
-// Register function - sử dụng demo registration
-const register = async (name, email, phone, password, confirmPassword) => {
+// Register function - sử dụng API USER.REGISTER thật
+const register = async (name, email, phone = '', password, confirmPassword) => {
   try {
     // Validate passwords match
     if (password !== confirmPassword) {
       return { success: false, error: 'Mật khẩu không khớp!' }
     }
     
-    // Validate phone number
-    const phoneRegex = /^[0-9]{10,11}$/
-    if (!phoneRegex.test(phone)) {
-      return { success: false, error: 'Số điện thoại phải có 10-11 chữ số!' }
+    // Validate phone number (optional)
+    if (phone && phone.trim()) {
+      const phoneRegex = /^[0-9]{10,11}$/
+      if (!phoneRegex.test(phone)) {
+        return { success: false, error: 'Số điện thoại phải có 10-11 chữ số!' }
+      }
     }
     
-    // Check if email already exists
-    const emailCheck = await checkEmailDuplicate(email)
-    if (emailCheck.success && emailCheck.result.exists) {
-      return { success: false, error: 'Email đã tồn tại trong hệ thống!' }
+    // Check if email already exists using USER API
+    try {
+      const emailCheck = await checkUserEmailExists(email)
+      if (emailCheck && emailCheck.exists) {
+        return { success: false, error: 'Email đã tồn tại trong hệ thống!' }
+      }
+    } catch (emailCheckError) {
+      console.warn('Email check failed, proceeding anyway:', emailCheckError)
     }
     
-    // Simulate successful registration
-    const userData = {
-      id: 'USER_' + Date.now(),
-      name: name,
+    // Call USER.REGISTER API
+    const registerData = {
       email: email,
-      phone: phone,
-      avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=28a745&color=fff`,
-      joinDate: new Date().toISOString().split('T')[0],
-      totalOrders: 0,
-      totalSpent: 0,
-      role: 'USER',
-      loginMethod: 'traditional'
+      matKhau: password,
+      vaiTro: USER_ROLES.CUSTOMER, // Default role: Customer (3)
+      tenNguoiDung: name
     }
     
-    saveUser(userData)
-    return { success: true, user: userData }
+    // Only add phone if provided
+    if (phone && phone.trim()) {
+      registerData.soDienThoai = phone
+    }
+    
+    const registerResponse = await apiCall(API_CONFIG.USER.REGISTER, {
+      method: 'POST',
+      body: JSON.stringify(registerData)
+    })
+    
+    // registerResponse is the user object directly from backend
+    if (registerResponse && registerResponse.maNguoiDung) {
+      const result = registerResponse
+      const userData = {
+        id: result.maNguoiDung || 'USER_' + Date.now(),
+        name: result.tenNguoiDung || name,
+        email: result.email || email,
+        phone: result.soDienThoai || phone,
+        avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=28a745&color=fff`,
+        joinDate: result.ngayTao || new Date().toISOString().split('T')[0],
+        totalOrders: result.tongDonHang || 0,
+        totalSpent: result.tongChiTieu || 0,
+        role: getRoleString(result.vaiTro) || 'USER',
+        loginMethod: 'traditional'
+      }
+      
+      saveUser(userData)
+      return { success: true, user: userData }
+    } else {
+      return { success: false, error: 'Đăng ký thất bại - Không nhận được dữ liệu user từ server' }
+    }
     
   } catch (error) {
     console.error('Register error:', error)
@@ -251,7 +304,7 @@ const registerWithFacebook = async (response) => {
 // Get JWT token from backend
 const getJWTToken = async () => {
   try {
-    const response = await apiCall(API_CONFIG.OAUTH2.GET_TOKEN)
+    const response = await apiCall(API_CONFIG.OAUTH2.GET_JWT_TOKEN)
     if (response.success) {
       localStorage.setItem('easymart-token', response.result.jwt_token)
       return response.result
@@ -300,7 +353,7 @@ const testOAuth2Config = async () => {
   }
 }
 
-// Check email duplicate
+// Check email duplicate (OAuth2)
 const checkEmailDuplicate = async (email) => {
   try {
     const response = await apiCall(`${API_CONFIG.OAUTH2.CHECK_EMAIL}?email=${encodeURIComponent(email)}`)
@@ -308,6 +361,43 @@ const checkEmailDuplicate = async (email) => {
   } catch (error) {
     console.error('Check email duplicate error:', error)
     throw error
+  }
+}
+
+// Check if user email exists (USER API) - NEW
+const checkUserEmailExists = async (email) => {
+  try {
+    // Build URL with parameters but pass just the endpoint to apiCall
+    const endpoint = API_CONFIG.USER.CHECK_EMAIL.replace('{email}', encodeURIComponent(email))
+    const response = await apiCall(endpoint)
+    return response
+  } catch (error) {
+    console.error('Check user email exists error:', error)
+    throw error
+  }
+}
+
+// Get user by email (USER API) - NEW
+const getUserByEmail = async (email) => {
+  try {
+    // Build URL with parameters but pass just the endpoint to apiCall
+    const endpoint = API_CONFIG.USER.GET_BY_EMAIL.replace('{email}', encodeURIComponent(email))
+    const response = await apiCall(endpoint)
+    return response
+  } catch (error) {
+    console.error('Get user by email error:', error)
+    throw error
+  }
+}
+
+// Helper function to convert role number to string
+const getRoleString = (roleNumber) => {
+  switch (roleNumber) {
+    case USER_ROLES.ADMIN: return 'ADMIN'
+    case USER_ROLES.MANAGER: return 'MANAGER'
+    case USER_ROLES.STAFF: return 'STAFF'
+    case USER_ROLES.CUSTOMER: return 'USER'
+    default: return 'USER'
   }
 }
 
@@ -319,6 +409,41 @@ const checkOAuth2Sub = async (sub) => {
   } catch (error) {
     console.error('Check OAuth2 sub error:', error)
     throw error
+  }
+}
+
+// Check authentication status - NEW API
+const checkAuthStatus = async () => {
+  try {
+    const token = localStorage.getItem('easymart-token')
+    if (!token) {
+      return { success: false, error: 'No token found' }
+    }
+    
+    const response = await apiCall(API_CONFIG.AUTH.STATUS, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
+    return response
+  } catch (error) {
+    console.error('Check auth status error:', error)
+    return { success: false, error: 'Failed to check auth status' }
+  }
+}
+
+// Validate token - NEW API
+const validateToken = async (token) => {
+  try {
+    const response = await apiCall(API_CONFIG.AUTH.VALIDATE_TOKEN, {
+      method: 'POST',
+      body: JSON.stringify({ token })
+    })
+    return response
+  } catch (error) {
+    console.error('Validate token error:', error)
+    return { success: false, error: 'Token validation failed' }
   }
 }
 
@@ -354,7 +479,7 @@ const handleOAuth2Callback = async () => {
       // Try to get user info and JWT token from backend APIs
       try {
         const userInfoResponse = await apiCall(API_CONFIG.OAUTH2.USER_INFO)
-        const tokenResponse = await apiCall(API_CONFIG.OAUTH2.GET_TOKEN)
+        const tokenResponse = await apiCall(API_CONFIG.OAUTH2.GET_JWT_TOKEN)
         
         if (userInfoResponse.success && tokenResponse.success) {
           const userInfo = userInfoResponse.result
@@ -413,18 +538,50 @@ const handleOAuth2Callback = async () => {
   }
 }
 
-// Logout function - clean up all user data
-const logout = () => {
-  localStorage.removeItem('easymart-user')
-  localStorage.removeItem('easymart-token')
-  localStorage.removeItem('easymart-user-email')
-  localStorage.removeItem('easymart-user-role')
-  localStorage.removeItem('easymart-user-id')
-  sessionStorage.removeItem('oauth2-frontend-redirect')
-  sessionStorage.removeItem('google-credential')
-  sessionStorage.removeItem('oauth2-login-mode')
-  sessionStorage.removeItem('google-user-info')
-  user.value = null
+// Logout function - sử dụng API AUTH.LOGOUT mới
+const logout = async () => {
+  try {
+    const token = localStorage.getItem('easymart-token')
+    
+    if (token) {
+      // Call new AUTH.LOGOUT API
+      try {
+        await apiCall(API_CONFIG.AUTH.LOGOUT, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        })
+      } catch (apiError) {
+        console.warn('Logout API call failed:', apiError)
+        // Continue with local cleanup even if API fails
+      }
+    }
+    
+    // Clean up all local data
+    localStorage.removeItem('easymart-user')
+    localStorage.removeItem('easymart-token')
+    localStorage.removeItem('easymart-user-email')
+    localStorage.removeItem('easymart-user-role')
+    localStorage.removeItem('easymart-user-id')
+    sessionStorage.removeItem('oauth2-frontend-redirect')
+    sessionStorage.removeItem('google-credential')
+    sessionStorage.removeItem('oauth2-login-mode')
+    sessionStorage.removeItem('google-user-info')
+    sessionStorage.removeItem('pending-oauth-user-info')
+    sessionStorage.removeItem('pending-google-credential')
+    sessionStorage.removeItem('pending-facebook-credential')
+    user.value = null
+    
+    return { success: true }
+  } catch (error) {
+    console.error('Logout error:', error)
+    // Still clean up local data even if there's an error
+    localStorage.clear()
+    sessionStorage.clear()
+    user.value = null
+    return { success: false, error: 'Đăng xuất có lỗi, nhưng đã xóa dữ liệu local' }
+  }
 }
 
 // Initialize user on first load
@@ -442,11 +599,16 @@ export function useAuth() {
     registerWithFacebook,
     logout,
     loadUser,
+    forceReloadUser,
     getJWTToken,
     getUserInfo,
     testOAuth2Config,
     checkEmailDuplicate,
+    checkUserEmailExists,
+    getUserByEmail,
     checkOAuth2Sub,
+    checkAuthStatus,
+    validateToken,
     handleOAuth2Callback
   }
 }
