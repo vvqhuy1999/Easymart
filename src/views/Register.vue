@@ -272,7 +272,6 @@ onMounted(async () => {
       try {
         const payload = JSON.parse(atob(pendingCredential.split('.')[1]))
         name.value = payload.name || ''
-        email.value = payload.email || ''
         phone.value = payload.phone || ''
         address.value = payload.address || ''
         
@@ -287,7 +286,7 @@ onMounted(async () => {
     }
   }
   
-  // Handle pending OAuth registration from Login redirect
+  // Handle pending OAuth registration from OAuth2Success redirect
   if (oauthPending === 'pending') {
     const pendingUserInfo = sessionStorage.getItem('pending-oauth-user-info')
     if (pendingUserInfo) {
@@ -301,6 +300,7 @@ onMounted(async () => {
         // Show info message
         success.value = 'Thông tin từ OAuth đã được điền sẵn. Vui lòng hoàn tất đăng ký.'
         
+        // Clear the pending user info after using it
         sessionStorage.removeItem('pending-oauth-user-info')
       } catch (err) {
         console.error('Error processing pending OAuth user info:', err)

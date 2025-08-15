@@ -104,35 +104,38 @@ onMounted(async () => {
           const { checkEmailDuplicate } = useAuth()
           const emailCheck = await checkEmailDuplicate(userEmail)
           
-                     if (emailCheck.success && emailCheck.result.exists) {
-             // User exists - show confirmation dialog for login
-             const userInfo = {
-               name: email ? email.split('@')[0] : 'OAuth User',
-               email: userEmail,
-               avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(email ? email.split('@')[0] : 'OAuth User')}&background=007bff&color=fff`
-             }
-             
-             pendingUserInfo.value = userInfo
-             oauthProvider.value = 'google'
-             isNewUser.value = false
-             showConfirmDialog.value = true
-             isLoading.value = false
-             return
-           } else {
-             // User doesn't exist - show confirmation dialog for registration
-             const userInfo = {
-               name: email ? email.split('@')[0] : 'OAuth User',
-               email: userEmail,
-               avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(email ? email.split('@')[0] : 'OAuth User')}&background=007bff&color=fff`
-             }
-             
-             pendingUserInfo.value = userInfo
-             oauthProvider.value = 'google'
-             isNewUser.value = true
-             showConfirmDialog.value = true
-             isLoading.value = false
-             return
-           }
+          if (emailCheck.success && emailCheck.result.exists) {
+            // User exists - show confirmation dialog for login
+            const userInfo = {
+              name: email ? email.split('@')[0] : 'OAuth User',
+              email: userEmail,
+              avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(email ? email.split('@')[0] : 'OAuth User')}&background=007bff&color=fff`
+            }
+            
+            pendingUserInfo.value = userInfo
+            oauthProvider.value = 'google'
+            isNewUser.value = false
+            showConfirmDialog.value = true
+            isLoading.value = false
+            return
+          } else {
+            // User doesn't exist - automatically redirect to registration without showing modal
+            const userInfo = {
+              name: email ? email.split('@')[0] : 'OAuth User',
+              email: userEmail,
+              avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(email ? email.split('@')[0] : 'OAuth User')}&background=007bff&color=fff`
+            }
+            
+            // Store user info for registration and redirect immediately
+            sessionStorage.setItem('pending-oauth-user-info', JSON.stringify(userInfo))
+            
+            // Clean URL parameters
+            window.history.replaceState({}, document.title, '/oauth2/success')
+            
+            // Redirect to registration page immediately
+            router.push('/register?oauth=pending')
+            return
+          }
           
         } catch (checkError) {
           console.error('Error checking user existence:', checkError)
