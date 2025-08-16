@@ -44,7 +44,7 @@ export const API_CONFIG = {
     CHECK_SUB: '/api/oauth2/check-sub',           // GET - Kiểm tra OAuth2 ID
     
     // Configuration & Testing
-    // TEST_CONFIG: '/api/oauth2/test-config',       // GET - Kiểm tra cấu hình OAuth2
+    TEST_CONFIG: '/api/oauth2/test-config',       // GET - Kiểm tra cấu hình OAuth2
     
     // Deprecated (sẽ chuyển hướng)
     LOGOUT_DEPRECATED: '/api/oauth2/logout'       // POST - ⚠️ DEPRECATED, dùng AUTH.LOGOUT
@@ -82,4 +82,51 @@ export const USER_ROLES = {
   MANAGER: 1,         // Quản lý  
   STAFF: 2,           // Nhân viên
   CUSTOMER: 3         // Khách hàng (default)
+}
+
+// New API Configuration structure
+export const API_BASE_URL = 'http://localhost:8080'
+
+export const API_ENDPOINTS = {
+  // OAuth2 endpoints
+  OAUTH2: {
+    TEST_CONFIG: '/api/oauth2/test-config',
+    USER_INFO: '/api/oauth2/user-info',
+    ANALYZE: '/api/oauth2/analyze',
+    CHECK_EMAIL: '/api/oauth2/check-email',
+    CHECK_SUB: '/api/oauth2/check-sub',
+    GET_TOKEN: '/api/oauth2/get-token',
+    GOOGLE_CALLBACK: '/api/oauth2/callback/google',
+    GOOGLE_REGISTER: '/api/oauth2/register/google'
+  },
+  
+  // Product categories
+  CATEGORIES: {
+    LIST: '/api/loaisanpham',
+    BY_ID: (id) => `/api/loaisanpham/${id}`
+  },
+  
+  // Products
+  PRODUCTS: {
+    LIST: '/api/sanpham',
+    BY_ID: (id) => `/api/sanpham/${id}`,
+    BY_CATEGORY: (categoryId) => `/api/sanpham/category/${categoryId}`,
+    BY_CATEGORY_ACTIVE: (categoryId) => `/api/sanpham/category/${categoryId}/active`
+  },
+  
+  // Images
+  IMAGES: {
+    PRODUCT_LIST: (productId) => `/api/hinhanh/product/${productId}`,
+    SERVE_IMAGE: (filename) => `/api/upload/serve-image/${filename}`,
+    PRODUCT_IMAGES: (productId) => [
+      `/api/upload/serve-image/${productId}_main.jfif`,
+      `/api/upload/serve-image/${productId}_main1.jfif`,
+      `/api/upload/serve-image/${productId}_main2.jfif`
+    ]
+  }
+}
+
+export default {
+  baseURL: API_BASE_URL,
+  endpoints: API_ENDPOINTS
 }

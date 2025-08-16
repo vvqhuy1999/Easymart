@@ -237,49 +237,32 @@ async function handleGoogleLogin(response) {
     // Check if response is valid
     if (!response.success) {
       error.value = response.error || 'Đăng nhập với Google thất bại'
+      isLoading.value = false
       return
     }
 
-    const result = await loginWithGoogle(response.credential)
-    
-    if (result.success) {
-      if (result.redirect) {
-        // Đang redirect tới Google OAuth2, hiển thị loading message
-        success.value = result.message || 'Đang chuyển hướng tới Google OAuth2...'
-        // Không tắt isLoading vì đang redirect
-        return
-      } else if (result.user) {
-        success.value = `Chào mừng ${result.user.name}! Đang chuyển hướng...`
-        
-        // Check for redirect after login
-        const redirectPath = localStorage.getItem('easymart-redirect-after-login')
-        localStorage.removeItem('easymart-redirect-after-login')
-        
-        // Redirect after success message
-        setTimeout(() => {
-          router.push(redirectPath || '/')
-        }, 1500)
-      }
-    } else {
-      // Nếu cần registration, chuyển hướng tới trang đăng ký
-      if (result.needsRegistration) {
-        error.value = result.error
-        // Store Google credential để sử dụng cho registration
-        sessionStorage.setItem('pending-google-credential', response.credential)
-        setTimeout(() => {
-          router.push('/register?google=pending')
-        }, 2000)
-      } else {
-        error.value = result.error || 'Đăng nhập với Google thất bại'
-      }
+    // Nếu là redirect response, chỉ hiển thị message và không gọi API
+    if (response.redirect) {
+      success.value = response.message || 'Đang chuyển hướng tới Google OAuth2...'
+      // Không tắt isLoading vì đang redirect
+      return
     }
+
+    // Nếu có credential, xử lý legacy flow (không còn dùng)
+    if (response.credential) {
+      error.value = 'Vui lòng sử dụng OAuth2 flow mới'
+      isLoading.value = false
+      return
+    }
+
+    // Fallback
+    error.value = 'Đăng nhập với Google thất bại'
+    isLoading.value = false
+    
   } catch (err) {
     console.error('Google login error:', err)
     error.value = 'Có lỗi xảy ra khi đăng nhập với Google, vui lòng thử lại'
-  } finally {
-    if (!success.value.includes('chuyển hướng tới Google OAuth2')) {
-      isLoading.value = false
-    }
+    isLoading.value = false
   }
 }
 

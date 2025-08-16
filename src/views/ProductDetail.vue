@@ -31,7 +31,7 @@ const route = useRoute()
 
 // Lấy productId từ route params
 const productId = computed(() => {
-  return parseInt(route.params.id)
+  return route.params.id
 })
 
 // Navigation methods

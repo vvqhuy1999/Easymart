@@ -17,7 +17,7 @@
 </template>
 
 <script setup>
-import { API_CONFIG, getApiUrl } from '../config/api'
+import { API_CONFIG, getApiUrl, API_BASE_URL } from '../config/api'
 
 // Props
 const props = defineProps({
@@ -38,26 +38,36 @@ const emit = defineEmits(['google-login'])
 const handleDirectGoogleLogin = () => {
   console.log('Direct Google login clicked')
   
-  // Emit loading state
-  emit('google-login', { 
-    success: true, 
-    redirect: true, 
-    message: 'Đang chuyển hướng tới Google OAuth2...' 
-  })
-  
-  // Store current frontend URL để backend có thể redirect về đúng chỗ
-  const frontendRedirectUrl = window.location.origin + window.location.pathname
-  sessionStorage.setItem('oauth2-frontend-redirect', frontendRedirectUrl)
-  
-  // Get Google OAuth2 authorization URL from backend  
-  const googleAuthUrl = getApiUrl(API_CONFIG.AUTHORIZATION.GOOGLE)
-  console.log('Redirecting to Google OAuth2:', googleAuthUrl)
-  console.log('Frontend redirect URL stored:', frontendRedirectUrl)
-  
-  // Redirect to backend OAuth2 endpoint
-  setTimeout(() => {
-    window.location.href = googleAuthUrl
-  }, 500)
+  try {
+    // Emit loading state
+    emit('google-login', { 
+      success: true, 
+      redirect: true, 
+      message: 'Đang chuyển hướng tới Google OAuth2...' 
+    })
+    
+    // Store current frontend URL để backend có thể redirect về đúng chỗ
+    const frontendRedirectUrl = window.location.origin + window.location.pathname
+    sessionStorage.setItem('oauth2-frontend-redirect', frontendRedirectUrl)
+    
+    // Get Google OAuth2 authorization URL from backend  
+    const googleAuthUrl = getApiUrl(API_CONFIG.AUTHORIZATION.GOOGLE)
+    console.log('Redirecting to Google OAuth2:', googleAuthUrl)
+    console.log('Frontend redirect URL stored:', frontendRedirectUrl)
+    
+    // Redirect to backend OAuth2 endpoint
+    setTimeout(() => {
+      window.location.href = googleAuthUrl
+    }, 500)
+    
+  } catch (error) {
+    console.error('Google OAuth2 redirect error:', error)
+    // Emit error state
+    emit('google-login', { 
+      success: false, 
+      error: 'Không thể chuyển hướng tới Google OAuth2. Vui lòng thử lại.' 
+    })
+  }
 }
 </script>
 

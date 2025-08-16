@@ -3,24 +3,30 @@
     <!-- Hero Carousel -->
     <HeroCarousel />
 
-    <!-- Daily Deals Section -->
-    <DailyDeals 
-      :products="flashSaleProducts"
-      :countdown="countdown"
-      :formatPrice="formatPrice"
-      @add-to-cart="addToCart"
-    />
+
 
     <!-- Product Categories -->
     <div id="productCategories">
+      <!-- Loading state for categories -->
+      <div v-if="isLoadingCategories" class="text-center py-5">
+        <div class="spinner-border text-primary" role="status">
+          <span class="visually-hidden">Đang tải danh mục...</span>
+        </div>
+        <p class="text-muted mt-3">Đang tải danh mục sản phẩm...</p>
+      </div>
+      
+      <!-- Categories when loaded -->
       <CategorySection
+        v-else
         v-for="category in categories"
         :key="category.id"
         :category="category"
-        :products="getProductsByCategory(category.id)"
+        :products="categoryProducts[category.id] || []"
+        :isLoadingProducts="isLoadingCategoryProducts[category.id]"
         :formatPrice="formatPrice"
         @add-to-cart="addToCart"
         @view-product="viewProduct"
+        @load-products="loadCategoryProducts"
       />
     </div>
 
@@ -54,21 +60,20 @@
  * Hiển thị:
  * - Header với tìm kiếm và giỏ hàng
  * - Hero Carousel (banner)
- * - Daily Deals (khuyến mãi trong ngày) 
  * - Product Categories (danh mục sản phẩm)
  * - Footer
  */
 
 // Vue Router
 import { useRouter } from 'vue-router'
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
 
 // Composables
 import { useEasyMart } from '../composables/useEasyMart'
 
 // Components
 import HeroCarousel from '../components/HeroCarousel.vue'
-import DailyDeals from '../components/DailyDeals.vue'
+
 import CategorySection from '../components/CategorySection.vue'
 import CouponButtonWidget from '../components/CouponButtonWidget.vue'
 
@@ -82,18 +87,40 @@ const showPromotionButton = ref(false)
 // Lấy data từ composable
 const {
   categories,
-  countdown,
-  flashSaleProducts,
   searchResults,
   cartCount,
   getProductsByCategory,
   formatPrice,
-  addToCart
+  addToCart,
+  isLoadingCategories
 } = useEasyMart()
+
+// Reactive data for category products
+const categoryProducts = ref({})
+const isLoadingCategoryProducts = ref({})
 
 // Navigation method
 const viewProduct = (productId) => {
   router.push({ name: 'ProductDetail', params: { id: productId } })
+}
+
+// Load products for a specific category
+const loadCategoryProducts = async (categoryId) => {
+  if (categoryProducts.value[categoryId]) {
+    return categoryProducts.value[categoryId]
+  }
+  
+  try {
+    isLoadingCategoryProducts.value[categoryId] = true
+    const products = await getProductsByCategory(categoryId)
+    categoryProducts.value[categoryId] = products
+    return products
+  } catch (error) {
+    console.error(`Failed to load products for category ${categoryId}:`, error)
+    return []
+  } finally {
+    isLoadingCategoryProducts.value[categoryId] = false
+  }
 }
 
 // Go to promotions page
@@ -118,6 +145,17 @@ const handleScroll = () => {
 onMounted(() => {
   window.addEventListener('scroll', handleScroll)
   handleScroll() // Check initial state
+  
+  // Auto-load products for categories when they're loaded
+  watch(categories, async (newCategories) => {
+    if (newCategories.length > 0) {
+      // Load products for first few categories
+      const categoriesToLoad = newCategories.slice(0, 3)
+      for (const category of categoriesToLoad) {
+        await loadCategoryProducts(category.id)
+      }
+    }
+  }, { immediate: true })
 })
 
 onUnmounted(() => {

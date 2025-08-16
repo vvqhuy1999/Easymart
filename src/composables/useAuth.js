@@ -1,5 +1,5 @@
 import { ref, computed } from 'vue'
-import { API_CONFIG, getApiUrl, getApiUrlWithParams, USER_ROLES } from '../config/api.js'
+import { API_CONFIG, getApiUrl, getApiUrlWithParams, USER_ROLES } from '../config/api'
 
 // Configuration for token storage
 const TOKEN_STORAGE_TYPE = 'cookie' // 'localStorage', 'sessionStorage', or 'cookie'

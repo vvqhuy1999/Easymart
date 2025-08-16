@@ -28,8 +28,33 @@
         <p class="text-muted">Khám phá {{ categoryProducts.length }} sản phẩm chất lượng</p>
       </div>
 
+
+
+      <!-- Loading State -->
+      <div v-if="isLoadingProducts" class="text-center py-5">
+        <div class="spinner-border text-primary" role="status">
+          <span class="visually-hidden">Đang tải sản phẩm...</span>
+        </div>
+        <p class="text-muted mt-3">Đang tải sản phẩm trong danh mục...</p>
+      </div>
+
+      <!-- Error State -->
+      <div v-else-if="hasError" class="text-center py-5">
+        <div class="error-state">
+          <i class="fas fa-exclamation-triangle fa-4x text-danger mb-4"></i>
+          <h3 class="text-danger mb-3">Không thể tải sản phẩm</h3>
+          <p class="text-muted mb-4">Đã xảy ra lỗi khi tải sản phẩm từ API</p>
+          <button @click="loadCategoryProducts" class="btn btn-primary me-2">
+            <i class="fas fa-refresh me-2"></i>Thử lại
+          </button>
+          <router-link to="/" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left me-2"></i>Về trang chủ
+          </router-link>
+        </div>
+      </div>
+
       <!-- Products Grid -->
-      <div v-if="categoryProducts.length > 0" class="row g-4">
+      <div v-else-if="categoryProducts.length > 0" class="row g-4">
         <div 
           v-for="product in categoryProducts" 
           :key="product.id" 
@@ -78,9 +103,10 @@
  * Hiển thị tất cả sản phẩm thuộc một danh mục cụ thể
  */
 
-import { computed } from 'vue'
+import { computed, ref, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useEasyMart } from '../composables/useEasyMart'
+import { API_BASE_URL, API_ENDPOINTS } from '../config/api'
 
 // Components
 // Đã xóa import Header và Footer
@@ -104,18 +130,74 @@ const {
   showNotification
 } = useEasyMart()
 
+// Reactive data
+const categoryProducts = ref([])
+const isLoadingProducts = ref(false)
+const hasError = ref(false)
+
 // Computed properties
-const categoryId = computed(() => parseInt(route.params.id))
+const categoryId = computed(() => route.params.id)
 
 const currentCategory = computed(() => {
   return getCategoryById(categoryId.value)
 })
 
-const categoryProducts = computed(() => {
-  return products.value.filter(product => product.categoryId === categoryId.value)
-})
-
 // Methods
+const loadCategoryProducts = async () => {
+  if (!categoryId.value) return
+  
+  try {
+    isLoadingProducts.value = true
+    hasError.value = false
+    
+    const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.PRODUCTS.BY_CATEGORY_ACTIVE(categoryId.value)}`)
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+    
+    const apiProducts = await response.json()
+    
+    // Debug: Log API response
+    console.log('API Response for category', categoryId.value, ':', apiProducts)
+    
+    // Map API products to frontend format
+    categoryProducts.value = apiProducts.map(product => {
+      const mappedProduct = {
+        id: product.maSP || product.id,
+        name: product.tenSP || product.name,
+        price: product.giaBan || product.price,
+        originalPrice: product.giaGoc || product.originalPrice,
+        categoryId: product.loaiSanPham?.maLoaiSP || product.categoryId,
+        categoryName: product.loaiSanPham?.tenLoai || product.categoryName,
+        image: `${API_BASE_URL}${API_ENDPOINTS.IMAGES.SERVE_IMAGE(product.maSP + '_main.jfif')}`,
+        images: API_ENDPOINTS.IMAGES.PRODUCT_IMAGES(product.maSP).map(img => `${API_BASE_URL}${img}`),
+        description: product.moTa || product.description,
+        isFlashSale: product.isFlashSale || false,
+        isActive: product.isActive !== false,
+        stock: product.trongLuong || product.stock || 0,
+        unit: product.donViTinh || product.unit || 'cái',
+        rating: product.danhGia || product.rating || 4.5,
+        reviews: product.danhGia || product.reviews || []
+      }
+      
+      // Debug: Log each mapped product
+      console.log('Mapped product:', mappedProduct)
+      
+      return mappedProduct
+    })
+    
+    console.log('Final categoryProducts:', categoryProducts.value)
+    
+  } catch (error) {
+    console.error(`Failed to load products for category ${categoryId.value}:`, error)
+    hasError.value = true
+    categoryProducts.value = []
+  } finally {
+    isLoadingProducts.value = false
+  }
+}
+
 const viewProduct = (productId) => {
   router.push({ name: 'ProductDetail', params: { id: productId } })
 }
@@ -127,6 +209,16 @@ const handleAddToWishlist = (productId) => {
 const handleCouponCopied = (couponCode) => {
   showNotification(`Đã copy mã khuyến mãi: ${couponCode}`, 'success')
 }
+
+// Lifecycle hooks
+onMounted(() => {
+  loadCategoryProducts()
+})
+
+// Watch for category changes
+watch(categoryId, () => {
+  loadCategoryProducts()
+})
 </script>
 
 <style scoped>
@@ -150,6 +242,10 @@ const handleCouponCopied = (couponCode) => {
 }
 
 .no-products {
+  padding: 3rem 1rem;
+}
+
+.error-state {
   padding: 3rem 1rem;
 }
 

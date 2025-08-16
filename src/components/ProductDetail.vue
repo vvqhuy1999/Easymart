@@ -24,11 +24,33 @@
 
     <!-- Product Detail Section -->
     <div class="container my-5">
-      <div v-if="!currentProduct" class="row">
+      <!-- Loading State -->
+      <div v-if="!currentProduct && isLoading" class="row">
+        <div class="col-12 text-center py-5">
+          <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Đang tải sản phẩm...</span>
+          </div>
+          <p class="text-muted mt-3">Đang tải thông tin sản phẩm...</p>
+        </div>
+      </div>
+      
+      <!-- Not Found State -->
+      <div v-else-if="!currentProduct" class="row">
         <div class="col-12 text-center">
           <h3>Không tìm thấy sản phẩm</h3>
           <p class="text-muted">Sản phẩm bạn tìm kiếm không tồn tại.</p>
-          <button class="btn btn-primary" @click="$emit('go-home')">
+          
+          <!-- Debug Info (tạm thời) -->
+          <div class="debug-info mt-4 p-3 bg-light rounded text-start">
+            <h6 class="text-muted">Debug Info:</h6>
+            <p><strong>Product ID:</strong> {{ props.productId }}</p>
+            <p><strong>Current Product:</strong> {{ currentProduct }}</p>
+            <p><strong>Is Loading:</strong> {{ isLoading }}</p>
+            <p><strong>Products Count:</strong> {{ products.length }}</p>
+            <p><strong>Available Product IDs:</strong> {{ products.map(p => p.id).join(', ') }}</p>
+          </div>
+          
+          <button class="btn btn-primary mt-3" @click="$emit('go-home')">
             <i class="fas fa-home me-2"></i>Về trang chủ
           </button>
         </div>
@@ -370,6 +392,7 @@ const {
   discountPercentage,
   relatedProducts,
   currentCategory,
+  isLoading,
   loadProduct,
   changeQuantity,
   addToCartWithQuantity,
@@ -406,10 +429,12 @@ const handleNewReview = (newReview) => {
 }
 
 // Watch cho props.productId để load sản phẩm mới khi route thay đổi
-watch(() => props.productId, (newId) => {
+watch(() => props.productId, async (newId) => {
   console.log('🔄 ProductDetail - ProductId changed to:', newId)
+  console.log('🔄 ProductDetail - currentProduct before load:', currentProduct.value)
   if (newId) {
-    loadProduct(newId)
+    await loadProduct(newId)
+    console.log('🔄 ProductDetail - currentProduct after load:', currentProduct.value)
   }
 }, { immediate: true })
 
@@ -426,10 +451,12 @@ watch(activeTab, (newTab) => {
 
 // ==================== LIFECYCLE HOOKS ====================
 // Load sản phẩm khi component mount
-onMounted(() => {
+onMounted(async () => {
   console.log('🚀 ProductDetail - Component mounted with productId:', props.productId)
+  console.log('🚀 ProductDetail - currentProduct on mount:', currentProduct.value)
   if (props.productId) {
-    loadProduct(props.productId)
+    await loadProduct(props.productId)
+    console.log('🚀 ProductDetail - currentProduct after mount load:', currentProduct.value)
   }
 })
 

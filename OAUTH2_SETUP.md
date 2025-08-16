@@ -54,16 +54,18 @@ http://your-backend-domain.com/login/oauth2/code/google
 
 #### 3.1. Backend OAuth2 Redirect Configuration
 
-**QUAN TRỌNG**: Backend cần cấu hình để redirect về frontend sau khi OAuth2 thành công. Thêm vào `application.properties` hoặc `application.yml`:
+**QUAN TRỌNG**: Backend cần cấu hình để redirect trực tiếp về frontend Vue.js app sau khi OAuth2 thành công. Thêm vào `application.properties` hoặc `application.yml`:
 
 ```properties
-# OAuth2 Success Redirect (Frontend URL)
+# OAuth2 Success Redirect (Frontend URL) - Redirect trực tiếp về Vue.js app
 oauth2.success.redirect-uri=http://localhost:3000/oauth2/success
 oauth2.failure.redirect-uri=http://localhost:3000/login?error=oauth2_failed
 
 # Development
 spring.security.oauth2.client.registration.google.redirect-uri=http://localhost:8080/login/oauth2/code/google
 ```
+
+**Lưu ý**: Không cần file `oauth2-success-redirect.html` nữa. Backend sẽ redirect trực tiếp về frontend Vue.js app tại route `/oauth2/success`.
 
 #### 3.2. Backend Endpoints 
 
@@ -304,10 +306,10 @@ localStorage.setItem('easymart-token', token)
 
 ## 🎯 **Backend Redirect Configuration**
 
-### **🔧 Solution cho `http://localhost:8080/oauth2/success.html`:**
+### **🔧 Solution cho OAuth2 Flow (Đã được tối ưu):**
 
-#### **Option 1: Direct Frontend Redirect (Recommended)**
-Cấu hình backend redirect trực tiếp về frontend:
+#### **Direct Frontend Redirect (Recommended)**
+Cấu hình backend redirect trực tiếp về frontend Vue.js app:
 ```yaml
 # application.yaml
 oauth2:
@@ -317,24 +319,9 @@ oauth2:
     failure-path: /login?error=oauth2_failed
 ```
 
-#### **Option 2: Backend HTML Redirect Page**
-Nếu backend redirect về `oauth2/success.html`, copy file này vào backend:
+**Lưu ý**: Không cần file `oauth2-success-redirect.html` nữa. Backend sẽ redirect trực tiếp về frontend Vue.js app tại route `/oauth2/success`.
 
-**File: `backend/src/main/resources/static/oauth2/success.html`**
-```html
-<!-- Copy nội dung từ oauth2-success-redirect.html -->
-<!-- File này sẽ tự động redirect về frontend với JWT token -->
-```
-
-**Spring Boot Structure:**
-```
-backend/
-├── src/main/resources/static/
-│   └── oauth2/
-│       └── success.html  ← File redirect về frontend
-```
-
-### **🔄 Complete Redirect Flow:**
+### **🔄 Complete Redirect Flow (Đã tối ưu):**
 
 ```mermaid
 graph TD
@@ -342,11 +329,12 @@ graph TD
     B --> C[Google Authentication] 
     C --> D[Backend Callback với code]
     D --> E[Backend tạo JWT token]
-    E --> F[Backend redirect: oauth2/success.html?token=JWT]
-    F --> G[HTML page redirect về Frontend]
-    G --> H[Frontend /oauth2/success]
-    H --> I[Extract token & redirect home]
+    E --> F[Backend redirect trực tiếp: /oauth2/success?token=JWT]
+    F --> G[Frontend Vue.js /oauth2/success route]
+    G --> H[Extract token & redirect home]
 ```
+
+**Ưu điểm**: Loại bỏ bước trung gian HTML page, flow đơn giản và nhanh hơn.
 
 ### **✅ Frontend Ready:**
 - ✅ `/oauth2/success` route handle redirect từ backend
@@ -355,10 +343,12 @@ graph TD
 - ✅ JWT token auto-refresh functionality
 - ✅ API client với `Authorization: Bearer` header
 
-### **🎉 Result:**
-1. **Backend**: `http://localhost:8080/oauth2/success.html?success=true&token=JWT&email=user@gmail.com`
-2. **Auto-redirect**: `http://localhost:3000/oauth2/success?success=true&token=JWT&email=user@gmail.com`
-3. **Final**: `http://localhost:3000/` (Home page)
+### **🎉 Result (Đã tối ưu):**
+1. **Backend**: Redirect trực tiếp về frontend với tất cả tham số
+2. **Frontend**: `http://localhost:3000/oauth2/success?success=true&token=JWT&email=user@gmail.com&role=USER&userId=USER123`
+3. **Final**: `http://localhost:3000/` (Home page) hoặc trang được yêu cầu trước đó
+
+**Ưu điểm**: Loại bỏ bước trung gian, flow đơn giản hơn và dễ maintain.
 
 ## 🔗 Links
 

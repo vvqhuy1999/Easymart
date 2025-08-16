@@ -13,6 +13,7 @@ export function useProductDetail(productId) {
   const quantity = ref(1)
   const selectedImageIndex = ref(0)
   const activeTab = ref('description')
+  const isLoading = ref(false)
 
   // Computed properties
   const currentProductDetail = computed(() => {
@@ -40,11 +41,23 @@ export function useProductDetail(productId) {
   const currentImages = computed(() => {
     if (!currentProduct.value) return []
     
+    // Use product images from API if available
+    if (currentProduct.value?.images && currentProduct.value.images.length > 0) {
+      return currentProduct.value.images.map((url, index) => ({
+        id: index + 1,
+        url: url,
+        alt: index === 0 ? 'Hình chính' : `Góc nhìn ${index + 1}`,
+        isMain: index === 0
+      }))
+    }
+    
+    // Fallback to single image
+    const mainImage = currentProduct.value?.image || 'https://via.placeholder.com/800x600?text=No+Image'
+    
     return productImages.value[currentProduct.value.id] || [
-      { id: 1, url: currentProduct.value?.image || 'https://images.unsplash.com/photo-1544943910-4c1dc44aab44?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80', alt: 'Hình chính', isMain: true },
-      { id: 2, url: 'https://images.unsplash.com/photo-1567620832903-9fc6debc209f?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80', alt: 'Góc nhìn 2', isMain: false },
-      { id: 3, url: 'https://images.unsplash.com/photo-1559181567-c3190ca9959b?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80', alt: 'Góc nhìn 3', isMain: false },
-      { id: 4, url: 'https://images.unsplash.com/photo-1565680018434-b513d5e5fd47?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80', alt: 'Góc nhìn 4', isMain: false }
+      { id: 1, url: mainImage, alt: 'Hình chính', isMain: true },
+      { id: 2, url: mainImage, alt: 'Góc nhìn 2', isMain: false },
+      { id: 3, url: mainImage, alt: 'Góc nhìn 3', isMain: false }
     ]
   })
 
@@ -94,12 +107,81 @@ export function useProductDetail(productId) {
   })
 
   // Methods
-  const loadProduct = (id) => {
-    const product = products.value.find(p => p.id === parseInt(id))
-    if (product) {
-      currentProduct.value = product
+  const loadProduct = async (id) => {
+    console.log('🚀 loadProduct called with ID:', id)
+    console.log('🚀 Current products.value:', products.value)
+    isLoading.value = true
+    
+    try {
+      // Try to get product from API first
+      const apiUrl = `http://localhost:8080/api/sanpham/${id}`
+      console.log('🌐 Calling API:', apiUrl)
+      
+      const response = await fetch(apiUrl)
+      console.log('📡 API Response status:', response.status)
+      console.log('📡 API Response ok:', response.ok)
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      
+      const apiProduct = await response.json()
+      console.log('📦 API Response data:', apiProduct)
+      
+      // Map API product to frontend format
+      const mappedProduct = {
+        id: apiProduct.maSP || apiProduct.id,
+        name: apiProduct.tenSP || apiProduct.name,
+        price: apiProduct.giaBan || apiProduct.price,
+        originalPrice: apiProduct.giaGoc || apiProduct.originalPrice,
+        categoryId: apiProduct.loaiSanPham?.maLoaiSP || apiProduct.categoryId,
+        categoryName: apiProduct.loaiSanPham?.tenLoai || apiProduct.categoryName,
+        image: `http://localhost:8080/api/upload/serve-image/${apiProduct.maSP}_main.jfif`,
+        images: [
+          `http://localhost:8080/api/upload/serve-image/${apiProduct.maSP}_main.jfif`,
+          `http://localhost:8080/api/upload/serve-image/${apiProduct.maSP}_main1.jfif`,
+          `http://localhost:8080/api/upload/serve-image/${apiProduct.maSP}_main2.jfif`
+        ],
+        description: apiProduct.moTa || apiProduct.description,
+        isFlashSale: apiProduct.isFlashSale || false,
+        isActive: apiProduct.isActive !== false,
+        stock: apiProduct.trongLuong || apiProduct.stock || 0,
+        unit: apiProduct.donViTinh || apiProduct.unit || 'cái',
+        rating: apiProduct.danhGia || apiProduct.rating || 4.5,
+        reviews: apiProduct.danhGia || apiProduct.reviews || []
+      }
+      
+      console.log('🔄 Mapped product:', mappedProduct)
+      
+      currentProduct.value = mappedProduct
       selectedImageIndex.value = 0
       quantity.value = 1
+      
+      console.log('✅ Product loaded from API:', mappedProduct)
+      console.log('✅ currentProduct.value set to:', currentProduct.value)
+      
+    } catch (error) {
+      console.error(`❌ Failed to load product ${id} from API:`, error)
+      
+      // Fallback: try to find in local products
+      console.log('🔄 Trying fallback: searching in local products...')
+      const product = products.value.find(p => p.id === id || p.id === String(id) || p.id === parseInt(id))
+      console.log('🔄 Found product in local data:', product)
+      
+      if (product) {
+        currentProduct.value = product
+        selectedImageIndex.value = 0
+        quantity.value = 1
+        console.log('✅ Product loaded from local data:', product)
+        console.log('✅ currentProduct.value set to:', currentProduct.value)
+      } else {
+        console.error('❌ Product not found in local data either')
+        console.log('❌ Available product IDs:', products.value.map(p => p.id))
+        currentProduct.value = null
+      }
+    } finally {
+      isLoading.value = false
+      console.log('🏁 Loading finished, isLoading:', isLoading.value)
     }
   }
 
@@ -204,6 +286,7 @@ export function useProductDetail(productId) {
     quantity,
     selectedImageIndex,
     activeTab,
+    isLoading,
     
     // Computed
     currentProductDetail,

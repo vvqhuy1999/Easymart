@@ -64,35 +64,58 @@
 
       <!-- Bootstrap Container hiển thị danh sách sản phẩm -->
       <div class="mt-4 mb-5">
-        <!-- Bootstrap Row cho grid layout -->
-        <TransitionGroup 
-          name="products" 
-          tag="div" 
-          class="row g-3"
-        >
-          <!-- Loop qua các sản phẩm đã được sort với Bootstrap columns -->
-          <div
-            v-for="(product, index) in displayedProducts"
-            :key="product.id"
-            :class="[
-              'col-12', 
-              'col-sm-6', 
-              'col-md-4', 
-              'col-lg-3',
-              'product-item'
-            ]"
-            :style="{ animationDelay: `${index * 0.1}s` }"
-          >
-            <!-- Component ProductCard với các props và events -->
-            <ProductCard
-              :product="product"
-              :formatPrice="formatPrice"
-              @add-to-cart="handleAddToCart"
-              @view-detail="handleViewProduct"
-              @add-to-wishlist="handleAddToWishlist"
-            />
+        <!-- Loading state for products -->
+        <div v-if="isLoadingProducts" class="text-center py-5">
+          <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Đang tải sản phẩm...</span>
           </div>
-        </TransitionGroup>
+          <p class="text-muted mt-3">Đang tải sản phẩm trong danh mục...</p>
+        </div>
+        
+        <!-- Products grid when loaded -->
+        <div v-else-if="products.length > 0">
+          <!-- Bootstrap Row cho grid layout -->
+          <TransitionGroup 
+            name="products" 
+            tag="div" 
+            class="row g-3"
+          >
+            <!-- Loop qua các sản phẩm đã được sort với Bootstrap columns -->
+            <div
+              v-for="(product, index) in displayedProducts"
+              :key="product.id"
+              :class="[
+                'col-12', 
+                'col-sm-6', 
+                'col-md-4', 
+                'col-lg-3',
+                'product-item'
+              ]"
+              :style="{ animationDelay: `${index * 0.1}s` }"
+            >
+              <!-- Component ProductCard với các props và events -->
+              <ProductCard
+                :product="product"
+                :formatPrice="formatPrice"
+                @add-to-cart="handleAddToCart"
+                @view-detail="handleViewProduct"
+                @add-to-wishlist="handleAddToWishlist"
+              />
+            </div>
+          </TransitionGroup>
+        </div>
+        
+        <!-- Empty state when no products -->
+        <div v-else class="text-center py-5">
+          <div class="empty-icon mb-4">
+            <i class="fas fa-box-open fa-4x text-muted"></i>
+          </div>
+          <h4 class="text-muted mb-3">Chưa có sản phẩm nào</h4>
+          <p class="text-muted mb-4">Danh mục này chưa có sản phẩm nào được thêm vào</p>
+          <button class="btn btn-primary" @click="emit('load-products', category.id)">
+            <i class="fas fa-refresh me-2"></i>Tải lại sản phẩm
+          </button>
+        </div>
       </div>
 
       <!-- Footer section với Load More và Show All buttons -->
@@ -209,6 +232,11 @@ const props = defineProps({
     required: true
     // Mảng sản phẩm thuộc danh mục này
   },
+  isLoadingProducts: {
+    type: Boolean,
+    default: false
+    // Trạng thái loading của products
+  },
   formatPrice: {
     type: Function,
     required: true
@@ -223,7 +251,7 @@ const props = defineProps({
 
 // ==================== EVENTS ====================
 // Định nghĩa các events emit lên parent component
-const emit = defineEmits(['add-to-cart', 'view-product', 'add-to-wishlist', 'show-more', 'show-all'])
+const emit = defineEmits(['add-to-cart', 'view-product', 'add-to-wishlist', 'show-more', 'show-all', 'load-products'])
 
 // ==================== REACTIVE DATA ====================
 // Cách sắp xếp sản phẩm: 'default', 'name', 'price-low', 'price-high', 'newest', 'popular'

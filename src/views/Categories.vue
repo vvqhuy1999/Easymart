@@ -102,8 +102,16 @@
     <!-- Categories Grid -->
     <section class="categories-section py-5">
       <div class="container">
-        <!-- Grid View -->
-        <div v-if="viewMode === 'grid'" class="row g-4">
+        <!-- Loading state -->
+        <div v-if="isLoadingCategories" class="text-center py-5">
+          <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Đang tải danh mục...</span>
+          </div>
+          <p class="text-muted mt-3">Đang tải danh mục sản phẩm...</p>
+        </div>
+        
+        <!-- Grid View when loaded -->
+        <div v-else-if="viewMode === 'grid'" class="row g-4">
           <div 
             v-for="category in filteredCategories" 
             :key="category.id"
@@ -142,8 +150,8 @@
           </div>
         </div>
 
-        <!-- List View -->
-        <div v-else class="category-list-view">
+        <!-- List View when loaded -->
+        <div v-else-if="!isLoadingCategories" class="category-list-view">
           <div 
             v-for="category in filteredCategories" 
             :key="category.id"
@@ -176,8 +184,8 @@
           </div>
         </div>
 
-        <!-- Empty State -->
-        <div v-if="filteredCategories.length === 0" class="empty-state text-center py-5">
+        <!-- Empty State when loaded -->
+        <div v-if="!isLoadingCategories && filteredCategories.length === 0" class="empty-state text-center py-5">
           <div class="empty-icon mb-4">
             <i class="fas fa-search fa-4x text-muted"></i>
           </div>
@@ -198,7 +206,16 @@
             <h3 class="text-center mb-5">
               <i class="fas fa-fire text-danger me-2"></i>Danh mục phổ biến
             </h3>
-            <div class="row g-3">
+            <!-- Loading state for popular categories -->
+            <div v-if="isLoadingCategories" class="text-center py-5">
+              <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Đang tải...</span>
+              </div>
+              <p class="text-muted mt-3">Đang tải danh mục phổ biến...</p>
+            </div>
+            
+            <!-- Popular categories when loaded -->
+            <div v-else class="row g-3">
               <div 
                 v-for="category in popularCategories" 
                 :key="category.id"
@@ -225,6 +242,7 @@ import { computed, ref, onMounted, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useEasyMart } from '../composables/useEasyMart'
 import { containsIgnoreDiacritics } from '../utils/vietnamese'
+import CategoryService from '../utils/categoryService.js'
 
 // Router
 const router = useRouter()
@@ -234,7 +252,8 @@ const route = useRoute()
 const {
   categories,
   products,
-  getProductsByCategory
+  getProductsByCategory,
+  isLoadingCategories
 } = useEasyMart()
 
 // Reactive data
