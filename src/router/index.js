@@ -124,6 +124,15 @@ const routes = [
     }
   },
   {
+    path: '/forgot-password',
+    name: 'ForgotPassword',
+    component: () => import('../views/ForgotPassword.vue'),
+    meta: {
+      title: 'Quên mật khẩu - EasyMart',
+      description: 'Đặt lại mật khẩu tài khoản EasyMart của bạn'
+    }
+  },
+  {
     path: '/profile',
     name: 'Profile',
     component: () => import('../views/Profile.vue'),

@@ -223,7 +223,7 @@ const performSearch = () => {
 }
 
 const viewProduct = (productId) => {
-  router.push({ name: 'ProductDetail', params: { id: productId } })
+          router.push({ name: 'ProductDetail', params: { id: productId } })
 }
 
 const handleAddToWishlist = (productId) => {

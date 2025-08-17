@@ -101,7 +101,7 @@ const isLoadingCategoryProducts = ref({})
 
 // Navigation method
 const viewProduct = (productId) => {
-  router.push({ name: 'ProductDetail', params: { id: productId } })
+          router.push({ name: 'ProductDetail', params: { id: productId } })
 }
 
 // Load products for a specific category

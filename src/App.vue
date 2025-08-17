@@ -64,7 +64,7 @@ const router = useRouter()
  */
 const viewProduct = (productId) => {
   // Sử dụng router để chuyển trang theo tên route và tham số
-  router.push({ name: 'ProductDetail', params: { id: productId } })
+          router.push({ name: 'ProductDetail', params: { id: productId } })
 }
 
 </script>

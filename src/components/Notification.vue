@@ -138,23 +138,23 @@ onUnmounted(() => {
   transform: scale(1.1);
 }
 
-/* Type-specific gradient backgrounds */
-.alert-success {
+/* Type-specific gradient backgrounds - chỉ áp dụng cho notification component */
+.notification-alert.alert-success {
   background: linear-gradient(135deg, #22c55e, #16a34a);
   color: white;
 }
 
-.alert-warning {
+.notification-alert.alert-warning {
   background: linear-gradient(135deg, #f59e0b, #d97706);
   color: white;
 }
 
-.alert-danger {
+.notification-alert.alert-danger {
   background: linear-gradient(135deg, #ef4444, #dc2626);
   color: white;
 }
 
-.alert-info {
+.notification-alert.alert-info {
   background: linear-gradient(135deg, #3b82f6, #2563eb);
   color: white;
 }

@@ -293,7 +293,7 @@ const isAllSelected = computed(() => {
 
 // Methods
 const viewProduct = (productId) => {
-  router.push({ name: 'ProductDetail', params: { id: productId } })
+          router.push({ name: 'ProductDetail', params: { id: productId } })
 }
 
 const getCategoryName = (categoryId) => {

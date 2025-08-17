@@ -108,13 +108,11 @@
           <router-link to="/register" class="ms-1 text-primary">Đăng ký</router-link>
         </div>
         
-        <!-- Demo accounts -->
-        <div class="mt-4 p-3 bg-light rounded" :class="{ 'd-none': isLoading }">
-          <h6 class="text-muted mb-2"><i class="fas fa-info-circle me-2"></i>Tài khoản demo:</h6>
-          <small class="text-muted">
-            Email: demo@easymart.vn<br>
-            Mật khẩu: bất kỳ
-          </small>
+        <!-- Forgot Password Link -->
+        <div class="text-center mt-2" :class="{ 'd-none': isLoading }">
+          <router-link to="/forgot-password" class="text-muted text-decoration-none">
+            <i class="fas fa-question-circle me-1"></i>Quên mật khẩu?
+          </router-link>
         </div>
       </div>
     </div>

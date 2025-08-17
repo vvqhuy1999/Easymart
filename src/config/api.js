@@ -15,6 +15,13 @@ export const API_CONFIG = {
 
   },
   
+  // 🔑 PASSWORD RESET APIs (ForgotPasswordController)
+  PASSWORD_RESET: {
+    SEND_OTP: '/api/forgot-password/send-otp',           // POST - Gửi mã OTP
+    VERIFY_OTP: '/api/forgot-password/verify-otp',       // POST - Xác thực OTP
+    RESET_PASSWORD: '/api/forgot-password/reset-password' // POST - Đặt lại mật khẩu
+  },
+  
   // 👤 USER MANAGEMENT APIs (NguoiDungRestController) - ⭐ MỚI
   USER: {
     // Registration & User Management

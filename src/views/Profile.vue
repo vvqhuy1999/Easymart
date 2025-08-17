@@ -186,12 +186,12 @@
                 <h5 class="mb-4">Đổi mật khẩu</h5>
                 
                 <!-- Success/Error Messages -->
-                <div v-if="passwordSuccess" class="alert alert-success alert-dismissible fade show" role="alert">
+                <div v-if="passwordSuccess" class="alert alert-success alert-dismissible fade show" role="alert" style="background-color: #d4edda !important; border-color: #c3e6cb !important; color: #155724 !important;">
                   <i class="fas fa-check-circle me-2"></i>{{ passwordSuccess }}
                   <button type="button" class="btn-close" @click="passwordSuccess = ''"></button>
                 </div>
                 
-                <div v-if="passwordError" class="alert alert-danger alert-dismissible fade show" role="alert">
+                <div v-if="passwordError" class="alert alert-danger alert-dismissible fade show" role="alert" style="background-color: #f8d7da !important; border-color: #f5c6cb !important; color: #721c24 !important;">
                   <i class="fas fa-exclamation-triangle me-2"></i>{{ passwordError }}
                   <button type="button" class="btn-close" @click="passwordError = ''"></button>
                 </div>
@@ -303,9 +303,8 @@
                       <span v-if="isPasswordLoading" class="spinner-border spinner-border-sm me-2" role="status"></span>
                       {{ isPasswordLoading ? 'Đang cập nhật...' : 'Đổi mật khẩu' }}
                     </button>
-                    <button type="button" class="btn btn-outline-secondary" @click="resetPasswordForm">
-                      <i class="fas fa-undo me-2"></i>Khôi phục
-                    </button>
+                    
+
                   </div>
                 </form>
               </div>
@@ -335,10 +334,16 @@
 import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '../composables/useAuth'
+import { API_CONFIG } from '../config/api'
 
 // Composables
 const router = useRouter()
 const { user, isLoggedIn, validateProfileAccess, updateCustomerProfile } = useAuth()
+
+// Helper function to get token from cookie
+const getTokenFromCookie = () => {
+  return document.cookie.split('; ').find(row => row.startsWith('easymart-token='))?.split('=')[1]
+}
 
 // Check if user is logged in
 if (!isLoggedIn.value) {
@@ -451,10 +456,23 @@ const formatPrice = (price) => {
 
 
 const resetPasswordForm = () => {
+  // Reset form fields
   passwordForm.value = {
     currentPassword: '',
     newPassword: '',
     confirmPassword: ''
+  }
+  
+  // Reset password visibility
+  showCurrentPassword.value = false
+  showNewPassword.value = false
+  showConfirmPassword.value = false
+  
+  // Auto-hide success message after 3 seconds
+  if (passwordSuccess.value) {
+    setTimeout(() => {
+      passwordSuccess.value = ''
+    }, 3000)
   }
 }
 
@@ -498,6 +516,8 @@ const updateProfile = async () => {
   }
 }
 
+
+
 const changePassword = async () => {
   passwordError.value = ''
   passwordSuccess.value = ''
@@ -513,16 +533,78 @@ const changePassword = async () => {
     return
   }
   
+  // Additional password validation
+  const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@$!%*?&]{6,}$/
+  if (!passwordRegex.test(passwordForm.value.newPassword)) {
+    passwordError.value = 'Mật khẩu phải chứa cả chữ và số!'
+    return
+  }
+  
+  // Check if new password is same as current password
+  if (passwordForm.value.newPassword === passwordForm.value.currentPassword) {
+    passwordError.value = 'Mật khẩu mới không được giống mật khẩu hiện tại!'
+    return
+  }
+  
   isPasswordLoading.value = true
   
   try {
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1500))
+    // Get JWT token from cookie
+    const token = getTokenFromCookie()
+    if (!token) {
+      passwordError.value = 'Không có token xác thực!'
+      return
+    }
     
-    passwordSuccess.value = 'Mật khẩu đã được thay đổi thành công!'
-    resetPasswordForm()
+    // Call API to change password
+    const response = await fetch(`${API_CONFIG.BASE_URL}/api/nguoidung/change-password`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        oldPassword: passwordForm.value.currentPassword,
+        newPassword: passwordForm.value.newPassword,
+        confirmPassword: passwordForm.value.confirmPassword
+      })
+    })
+    
+    const result = await response.json()
+    
+    // Check if response is successful (status 200-299)
+    if (response.ok) {
+      // Check different success indicators
+      const isSuccess = result.success || result.message?.includes('thành công') || result.message?.includes('success')
+      
+      if (isSuccess) {
+        passwordSuccess.value = 'Mật khẩu đã được thay đổi thành công!'
+        
+        // Reset form immediately
+        passwordForm.value.currentPassword = ''
+        passwordForm.value.newPassword = ''
+        passwordForm.value.confirmPassword = ''
+        
+        // Reset password visibility
+        showCurrentPassword.value = false
+        showNewPassword.value = false
+        showConfirmPassword.value = false
+        
+        // Auto-hide success message after 3 seconds
+        setTimeout(() => {
+          passwordSuccess.value = ''
+        }, 3000)
+        
+      } else {
+        passwordError.value = result.message || result.error || 'Có lỗi xảy ra khi thay đổi mật khẩu!'
+      }
+      
+    } else {
+      passwordError.value = result.message || result.error || `HTTP Error: ${response.status} ${response.statusText}`
+    }
     
   } catch (error) {
+    console.error('Change password error:', error)
     passwordError.value = 'Có lỗi xảy ra khi thay đổi mật khẩu!'
   } finally {
     isPasswordLoading.value = false
@@ -603,6 +685,75 @@ onMounted(async () => {
 .nav-tabs .nav-link:hover {
   color: #007bff;
   border-color: transparent;
+}
+
+/* Custom alert colors để đảm bảo hiển thị đúng */
+.alert-success {
+  background-color: #d4edda !important;
+  border-color: #c3e6cb !important;
+  color: #155724 !important;
+}
+
+.alert-danger {
+  background-color: #f8d7da !important;
+  border-color: #f5c6cb !important;
+  color: #721c24 !important;
+}
+
+/* Override any conflicting CSS */
+.alert.alert-success {
+  background-color: #d4edda !important;
+  border-color: #c3e6cb !important;
+  color: #155724 !important;
+}
+
+.alert.alert-danger {
+  background-color: #f8d7da !important;
+  border-color: #f5c6cb !important;
+  color: #721c24 !important;
+}
+
+/* Force success color with highest specificity */
+div[class*="alert-success"], 
+.alert-success, 
+.alert.alert-success,
+div.alert.alert-success,
+div[class*="alert-success"][class*="alert-dismissible"],
+.alert-success.alert-dismissible,
+.alert.alert-success.alert-dismissible {
+  background-color: #d4edda !important;
+  border-color: #c3e6cb !important;
+  color: #155724 !important;
+}
+
+/* Force danger color with highest specificity */
+div[class*="alert-danger"], 
+.alert-danger, 
+.alert.alert-danger,
+div.alert.alert-danger,
+div[class*="alert-danger"][class*="alert-dismissible"],
+.alert-danger.alert-dismissible,
+.alert.alert-danger.alert-dismissible {
+  background-color: #f8d7da !important;
+  border-color: #f5c6cb !important;
+  color: #721c24 !important;
+}
+
+/* Additional specificity for password tab alerts */
+.tab-content .alert-success,
+.tab-content .alert.alert-success,
+.tab-content div.alert.alert-success {
+  background-color: #d4edda !important;
+  border-color: #c3e6cb !important;
+  color: #155724 !important;
+}
+
+.tab-content .alert-danger,
+.tab-content .alert.alert-danger,
+.tab-content div.alert.alert-danger {
+  background-color: #f8d7da !important;
+  border-color: #f5c6cb !important;
+  color: #721c24 !important;
 }
 
 .input-group-text {
