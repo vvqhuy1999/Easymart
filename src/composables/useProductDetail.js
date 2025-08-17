@@ -151,37 +151,26 @@ export function useProductDetail(productId) {
         reviews: apiProduct.danhGia || apiProduct.reviews || []
       }
       
-      console.log('🔄 Mapped product:', mappedProduct)
-      
       currentProduct.value = mappedProduct
       selectedImageIndex.value = 0
       quantity.value = 1
-      
-      console.log('✅ Product loaded from API:', mappedProduct)
-      console.log('✅ currentProduct.value set to:', currentProduct.value)
       
     } catch (error) {
       console.error(`❌ Failed to load product ${id} from API:`, error)
       
       // Fallback: try to find in local products
-      console.log('🔄 Trying fallback: searching in local products...')
       const product = products.value.find(p => p.id === id || p.id === String(id) || p.id === parseInt(id))
-      console.log('🔄 Found product in local data:', product)
       
       if (product) {
         currentProduct.value = product
         selectedImageIndex.value = 0
         quantity.value = 1
-        console.log('✅ Product loaded from local data:', product)
-        console.log('✅ currentProduct.value set to:', currentProduct.value)
       } else {
         console.error('❌ Product not found in local data either')
-        console.log('❌ Available product IDs:', products.value.map(p => p.id))
         currentProduct.value = null
       }
     } finally {
       isLoading.value = false
-      console.log('🏁 Loading finished, isLoading:', isLoading.value)
     }
   }
 

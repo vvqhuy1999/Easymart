@@ -472,10 +472,13 @@ onMounted(() => {
   window.addEventListener('resize', handleResize, { passive: true })
   
   // Listen for user updates from OAuth flow
-  window.addEventListener('user-updated', () => {
-    console.log('🔄 User updated event received, forcing reload')
-    forceReloadUser()
-  })
+  const handleUserUpdated = (event) => {
+    console.log('🔄 User updated event received:', event.detail)
+    // Không cần gọi forceReloadUser() vì user data đã được cập nhật
+    // Chỉ cần trigger reactivity nếu cần
+  }
+  
+  window.addEventListener('user-updated', handleUserUpdated)
   
   handleScroll()
 })
@@ -484,7 +487,7 @@ onUnmounted(() => {
   document.removeEventListener('click', handleOutsideClick)
   window.removeEventListener('scroll', throttledHandleScroll)
   window.removeEventListener('resize', handleResize)
-  window.removeEventListener('user-updated', forceReloadUser)
+  window.removeEventListener('user-updated', handleUserUpdated)
   
   // Clear timers
   if (categoryHoverTimer.value) {

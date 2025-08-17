@@ -1,6 +1,9 @@
 import { ref, computed } from 'vue'
 import { API_CONFIG, getApiUrl, getApiUrlWithParams, USER_ROLES } from '../config/api'
 
+// ============================================================================
+// 🍪 COOKIE & STORAGE UTILITIES
+// ============================================================================
 // Configuration for token storage
 const TOKEN_STORAGE_TYPE = 'cookie' // 'localStorage', 'sessionStorage', or 'cookie'
 
@@ -44,6 +47,9 @@ const removeCookie = (name) => {
   document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=Strict`
 }
 
+// ============================================================================
+// 🔐 STORAGE HELPER FUNCTIONS
+// ============================================================================
 // Universal storage helper functions
 const setStorageItem = (key, value) => {
   if (TOKEN_STORAGE_TYPE === 'cookie' && key === 'easymart-token') {
@@ -71,26 +77,69 @@ const removeStorageItem = (key) => {
   }
 }
 
+// ============================================================================
+// 🌍 GLOBAL STATE & REACTIVE VARIABLES
+// ============================================================================
 // Global state - singleton pattern
 const user = ref(null)
 const isLoggedIn = computed(() => !!user.value)
 
-// Load user from localStorage on init
+// ============================================================================
+// 👤 USER DATA MANAGEMENT FUNCTIONS
+// ============================================================================
+// Load user from localStorage on init - SECURE VERSION
 const loadUser = () => {
   const savedUser = localStorage.getItem('easymart-user')
   if (savedUser) {
-    user.value = JSON.parse(savedUser)
+    try {
+      const safeUserData = JSON.parse(savedUser)
+      // Only load safe data, full user data will be fetched from API if needed
+      user.value = {
+        ...safeUserData,
+        // Placeholder for sensitive data
+        email: null,
+        phone: null,
+        totalOrders: 0,
+        totalSpent: 0,
+        joinDate: null
+      }
+    } catch (error) {
+      console.error('Error loading user data:', error)
+      // Clear corrupted data
+      localStorage.removeItem('easymart-user')
+      user.value = null
+    }
   }
 }
 
-// Save user to localStorage
+// Save user to localStorage - SECURE VERSION
 const saveUser = (userData) => {
-  localStorage.setItem('easymart-user', JSON.stringify(userData))
+  // Only store essential, non-sensitive data
+  const safeUserData = {
+    id: userData.id,
+    name: userData.name,
+    avatar: userData.avatar,
+    role: userData.role,
+    loginMethod: userData.loginMethod,
+    // Store minimal info needed for UI
+    displayName: userData.name || userData.email?.split('@')[0] || 'User'
+  }
+  
+  // Store safe data in localStorage
+  localStorage.setItem('easymart-user', JSON.stringify(safeUserData))
+  
+  // Keep full user data in memory only (ref)
   user.value = userData
-  // Trigger a custom event to notify other components
-  window.dispatchEvent(new CustomEvent('user-updated', { detail: userData }))
+  
+  // Trigger a custom event to notify other components (chỉ khi cần thiết)
+  if (userData.triggerEvent !== false) {
+    window.dispatchEvent(new CustomEvent('user-updated', { detail: safeUserData }))
+  }
 }
 
+// ============================================================================
+// 🔑 JWT TOKEN UTILITIES
+// ============================================================================
 // Decode JWT token to get user info
 const decodeToken = (token) => {
   try {
@@ -127,6 +176,9 @@ const isTokenValid = (token) => {
   }
 }
 
+// ============================================================================
+// 🚀 TOKEN INITIALIZATION & VALIDATION
+// ============================================================================
 // Initialize user from token (token-only approach)
 const initUserFromToken = () => {
   const token = getStorageItem('easymart-token')
@@ -195,6 +247,9 @@ const debugCurrentToken = () => {
   }
 }
 
+// ============================================================================
+// 🌐 SERVER-SIDE TOKEN VALIDATION
+// ============================================================================
 // Check if token is valid on server (validates expiration, blacklist, etc.)
 const checkTokenValidity = async (token) => {
   try {
@@ -248,6 +303,9 @@ const checkTokenValidity = async (token) => {
   }
 }
 
+// ============================================================================
+// 🔄 USER DATA UPDATE & SYNCHRONIZATION
+// ============================================================================
 // Update user info from validation result (fetch full user data)
 const updateUserFromValidation = async (validationResult) => {
   try {
@@ -312,6 +370,9 @@ const updateUserFromValidation = async (validationResult) => {
   }
 }
 
+// ============================================================================
+// 🚪 AUTO-LOGOUT & SECURITY FUNCTIONS
+// ============================================================================
 // Auto-logout if token is invalid (expired, blacklisted, etc.)
 const autoLogoutIfInvalid = async () => {
   const token = getStorageItem('easymart-token')
@@ -359,6 +420,9 @@ const performAutoLogout = async (reason) => {
   window.location.href = '/login'
 }
 
+// ============================================================================
+// ✅ USER COMPLETENESS & VALIDATION
+// ============================================================================
 // Ensure user has complete info (including ID) - call before critical operations
 const ensureUserComplete = async () => {
   const currentUser = user.value
@@ -405,15 +469,766 @@ const ensureUserComplete = async () => {
   return currentUser
 }
 
-// Force reload user from localStorage
+// Force reload user from localStorage - SECURE VERSION
 const forceReloadUser = () => {
   const savedUser = localStorage.getItem('easymart-user')
   if (savedUser) {
-    user.value = JSON.parse(savedUser)
-    window.dispatchEvent(new CustomEvent('user-updated', { detail: user.value }))
+    try {
+      const safeUserData = JSON.parse(savedUser)
+      user.value = {
+        ...safeUserData,
+        // Placeholder for sensitive data
+        email: null,
+        phone: null,
+        totalOrders: 0,
+        totalSpent: 0,
+        joinDate: null
+      }
+      // KHÔNG dispatch event để tránh vòng lặp vô hạn
+      console.log('🔄 User data reloaded from localStorage')
+    } catch (error) {
+      console.error('Error reloading user data:', error)
+      localStorage.removeItem('easymart-user')
+      user.value = null
+    }
   }
 }
 
+// ============================================================================
+// 📡 API DATA FETCHING FUNCTIONS
+// ============================================================================
+// Fetch full user data from API when needed (for sensitive operations)
+const fetchFullUserData = async () => {
+  try {
+    const token = getStorageItem('easymart-token')
+    if (!token) return null
+    
+    // Call API to get full user data
+    const response = await apiCall(API_CONFIG.USER.GET_BY_ID, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
+    
+    if (response && response.result) {
+      // Update user with full data
+      user.value = response.result
+      // Keep safe data in localStorage
+      saveUser(response.result)
+      return response.result
+    }
+  } catch (error) {
+    console.error('Error fetching full user data:', error)
+    return null
+  }
+}
+
+// ============================================================================
+// 🔐 PROFILE VALIDATION FLOW - Core Function
+// ============================================================================
+// Validate token và lấy thông tin đầy đủ
+const validateProfileAccess = async () => {
+  try {
+    const token = getStorageItem('easymart-token')
+    if (!token) {
+      throw new Error('Không có token xác thực')
+    }
+
+    console.log('🔍 Validating token for profile access...')
+    
+    // Step 1: Validate token để lấy username
+    console.log('📡 Step 1: Calling validate-token API...')
+    const validateResponse = await apiCall(API_CONFIG.AUTH.VALIDATE_TOKEN, {
+      method: 'POST',
+      body: JSON.stringify({ token: token })
+    })
+    
+    console.log('📥 Validate token response:', validateResponse)
+    
+    if (!validateResponse?.result?.valid) {
+      throw new Error('Token không hợp lệ hoặc đã hết hạn')
+    }
+    
+    const { username, role, expiration } = validateResponse.result
+    console.log('✅ Token validated:', { username, role, expiration })
+    
+    // Step 2: Lấy mã người dùng từ email
+    console.log('📡 Step 2: Calling GET_BY_EMAIL API...')
+    const emailEndpoint = API_CONFIG.USER.GET_BY_EMAIL.replace('{email}', username)
+    console.log('🔗 Email endpoint:', emailEndpoint)
+    
+    const userResponse = await apiCall(emailEndpoint, {
+      method: 'GET'
+    })
+    
+    console.log('📥 User response:', userResponse)
+    
+    // Check different response formats
+    let userData = null
+    if (userResponse?.result) {
+      userData = userResponse.result
+    } else if (userResponse?.data) {
+      userData = userResponse.data
+    } else if (userResponse?.maNguoiDung) {
+      userData = userResponse
+    } else {
+      console.error('❌ Unexpected user response format:', userResponse)
+      throw new Error('Response format không đúng từ API người dùng')
+    }
+    
+    const { maNguoiDung, vaiTro } = userData
+    console.log('👤 User info retrieved:', { maNguoiDung, vaiTro })
+    
+    if (!maNguoiDung) {
+      throw new Error('Không tìm thấy mã người dùng trong response')
+    }
+    
+    // Step 3: Lấy thông tin khách hàng đầy đủ
+    console.log('📡 Step 3: Calling customer API...')
+    
+    // Lấy thông tin khách hàng từ endpoint chính xác
+    console.log('📡 Step 3: Calling customer API...')
+    
+    let customerData = null
+    let customerResponse = null
+    
+          // Sử dụng endpoint chính cho cả hai loại user (đăng nhập thường và Google OAuth2)
+      const endpoints = [
+        `/api/khachhang/by-nguoidung/${maNguoiDung}`,  // ✅ Endpoint chính cho cả hai loại user
+        `/api/khachhang/${maNguoiDung}`,               // Fallback 1
+        `/api/nguoidung/${maNguoiDung}`                // Fallback 2
+      ]
+    
+    for (let i = 0; i < endpoints.length; i++) {
+      const endpoint = endpoints[i]
+      console.log(`🔗 Trying endpoint ${i + 1}: ${endpoint}`)
+      
+      try {
+        const fullEndpoint = `${API_CONFIG.BASE_URL}${endpoint}`
+        console.log(`🔗 Full URL: ${fullEndpoint}`)
+        
+        customerResponse = await fetch(fullEndpoint, { 
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        })
+        
+        console.log(`📡 Response ${i + 1} status:`, customerResponse.status)
+        console.log(`📡 Response ${i + 1} redirected:`, customerResponse.redirected)
+        
+        if (customerResponse.ok) {
+          const contentType = customerResponse.headers.get('content-type')
+          console.log(`📡 Response ${i + 1} Content-Type:`, contentType)
+          
+          if (contentType && contentType.includes('application/json')) {
+            const responseData = await customerResponse.json()
+            console.log(`✅ Endpoint ${i + 1} success:`, responseData)
+            
+            // Xử lý response format khác nhau giữa đăng nhập thường và Google OAuth2
+            if (responseData?.hoTen) {
+              // Format customer data - đăng nhập thường
+              console.log('✅ Response có hoTen - format customer data')
+              customerData = {
+                hoTen: responseData.hoTen,
+                soDienThoai: responseData.sdt, // Map từ sdt
+                ngaySinh: responseData.ngaySinh,
+                diaChi: responseData.diaChi,
+                ngayTao: responseData.ngayDangKy,
+                tongDonHang: 0, // Chưa có trong response
+                tongChiTieu: 0,  // Chưa có trong response
+                // Thêm thông tin mới
+                maKH: responseData.maKH,
+                diemTichLuy: responseData.diemTichLuy,
+                loaiKhachHang: responseData.loaiKhachHang,
+                nguoiDung: responseData.nguoiDung,
+                // Thêm field gốc để debug
+                sdt: responseData.sdt
+              }
+            } else if (responseData?.token) {
+              // Format token - Google OAuth2 user, cần gọi API khác để lấy customer info
+              console.log('⚠️ Response chỉ có token - cần xử lý khác cho Google OAuth2 user')
+              
+              try {
+                // Gọi API để lấy thông tin customer từ maNguoiDung
+                console.log('🔄 Gọi API /api/nguoidung để lấy customer info...')
+                const customerInfoResponse = await fetch(`${API_CONFIG.BASE_URL}/api/nguoidung/${maNguoiDung}`, {
+                  method: 'GET',
+                  headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                  }
+                })
+                
+                if (customerInfoResponse.ok) {
+                  const customerInfo = await customerInfoResponse.json()
+                  console.log('✅ Customer info từ /api/nguoidung:', customerInfo)
+                  
+                  customerData = {
+                    hoTen: customerInfo.tenNguoiDung || username.split('@')[0],
+                    soDienThoai: customerInfo.soDienThoai || '',
+                    ngaySinh: customerInfo.ngaySinh || null,
+                    diaChi: customerInfo.diaChi || '',
+                    ngayTao: customerInfo.ngayTao || new Date().toISOString().split('T')[0],
+                    tongDonHang: 0,
+                    tongChiTieu: 0,
+                    // Thông tin cho Google OAuth2 user
+                    maKH: customerInfo.maNguoiDung,
+                    diemTichLuy: 0,
+                    loaiKhachHang: 'OAuth2 User',
+                    sdt: customerInfo.soDienThoai || ''
+                  }
+                } else {
+                  console.log('❌ Không thể lấy customer info từ /api/nguoidung')
+                  continue // Thử endpoint tiếp theo
+                }
+              } catch (error) {
+                console.log('❌ Lỗi khi gọi /api/nguoidung:', error.message)
+                continue // Thử endpoint tiếp theo
+              }
+            } else if (responseData?.result) {
+              customerData = responseData.result
+            } else if (responseData?.data) {
+              customerData = responseData.data
+            } else {
+              // Không có hoTen, token, result, data - có thể là Google OAuth2 user
+              console.log('⚠️ Response không có hoTen, token, result, data - có thể là Google OAuth2 user')
+              
+              // Kiểm tra nếu là Google OAuth2 user dựa trên email domain
+              const isGoogleUser = username.includes('@gmail.com') || username.includes('@fpt.edu.vn')
+              
+              if (isGoogleUser) {
+                console.log('🔍 Detected Google OAuth2 user, calling /api/nguoidung...')
+                
+                try {
+                  // Gọi API để lấy thông tin customer từ maNguoiDung
+                  console.log('🔄 Gọi API /api/nguoidung để lấy customer info...')
+                  const customerInfoResponse = await fetch(`${API_CONFIG.BASE_URL}/api/nguoidung/${maNguoiDung}`, {
+                    method: 'GET',
+                    headers: {
+                      'Authorization': `Bearer ${token}`,
+                      'Content-Type': 'application/json'
+                    }
+                  })
+                  
+                  if (customerInfoResponse.ok) {
+                    const customerInfo = await customerInfoResponse.json()
+                    console.log('✅ Customer info từ /api/nguoidung:', customerInfo)
+                    
+                    // Kiểm tra và xử lý dữ liệu phone và address
+                    let phoneData = ''
+                    let addressData = ''
+                    
+                    // Thử nhiều field name khác nhau cho phone
+                    if (customerInfo.soDienThoai) {
+                      phoneData = customerInfo.soDienThoai
+                    } else if (customerInfo.sdt) {
+                      phoneData = customerInfo.sdt
+                    } else if (customerInfo.phone) {
+                      phoneData = customerInfo.phone
+                    } else if (customerInfo.dienThoai) {
+                      phoneData = customerInfo.dienThoai
+                    }
+                    
+                    // Thử nhiều field name khác nhau cho address
+                    if (customerInfo.diaChi) {
+                      addressData = customerInfo.diaChi
+                    } else if (customerInfo.address) {
+                      addressData = customerInfo.address
+                    } else if (customerInfo.diaChiChiTiet) {
+                      addressData = customerInfo.diaChiChiTiet
+                    }
+                    
+                    customerData = {
+                      hoTen: customerInfo.tenNguoiDung || customerInfo.hoTen || username.split('@')[0],
+                      soDienThoai: phoneData,
+                      ngaySinh: customerInfo.ngaySinh || null,
+                      diaChi: addressData,
+                      ngayTao: customerInfo.ngayTao || customerInfo.ngayDangKy || new Date().toISOString().split('T')[0],
+                      tongDonHang: 0,
+                      tongChiTieu: 0,
+                      // Thông tin cho Google OAuth2 user
+                      maKH: customerInfo.maNguoiDung || customerInfo.maKH || maNguoiDung,
+                      diemTichLuy: 0,
+                      loaiKhachHang: 'OAuth2 User',
+                      sdt: phoneData  // Sử dụng phoneData đã xử lý
+                    }
+                  } else {
+                    console.log('❌ Không thể lấy customer info từ /api/nguoidung')
+                    continue // Thử endpoint tiếp theo
+                  }
+                } catch (error) {
+                  console.log('❌ Lỗi khi gọi /api/nguoidung:', error.message)
+                  continue // Thử endpoint tiếp theo
+                }
+              } else {
+                console.log(`⚠️ Endpoint ${i + 1} response format không xác định:`, responseData)
+                continue // Thử endpoint tiếp theo
+              }
+            }
+            
+            console.log(`✅ Found working endpoint: ${endpoint}`)
+            break // Thoát vòng lặp nếu tìm thấy endpoint hoạt động
+          } else {
+            const responseText = await customerResponse.text()
+            console.log(`⚠️ Endpoint ${i + 1} returned non-JSON:`, responseText.substring(0, 200))
+            continue // Thử endpoint tiếp theo
+          }
+        } else if (customerResponse.redirected) {
+          console.log(`⚠️ Endpoint ${i + 1} was redirected - trying /api/nguoidung directly...`)
+          
+          // Kiểm tra nếu là Google OAuth2 user và bị redirect
+          const isGoogleUser = username.includes('@gmail.com') || username.includes('@fpt.edu.vn')
+          
+          if (isGoogleUser) {
+            try {
+              // Gọi trực tiếp /api/nguoidung thay vì thử endpoints khác
+              const directResponse = await fetch(`${API_CONFIG.BASE_URL}/api/nguoidung/${maNguoiDung}`, {
+                method: 'GET',
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Content-Type': 'application/json'
+                }
+              })
+              
+              if (directResponse.ok) {
+                const directInfo = await directResponse.json()
+                console.log('✅ Direct call to /api/nguoidung successful')
+                
+                // Xử lý dữ liệu tương tự như đã làm
+                let phoneData = directInfo.soDienThoai || directInfo.sdt || directInfo.phone || directInfo.dienThoai || ''
+                let addressData = directInfo.diaChi || directInfo.address || directInfo.diaChiChiTiet || ''
+                
+                customerData = {
+                  hoTen: directInfo.tenNguoiDung || directInfo.hoTen || username.split('@')[0],
+                  soDienThoai: phoneData,
+                  ngaySinh: directInfo.ngaySinh || null,
+                  diaChi: addressData,
+                  ngayTao: directInfo.ngayTao || directInfo.ngayDangKy || new Date().toISOString().split('T')[0],
+                  tongDonHang: 0,
+                  tongChiTieu: 0,
+                  // Thông tin cho Google OAuth2 user
+                  maKH: directInfo.maNguoiDung || directInfo.maKH || maNguoiDung,
+                  diemTichLuy: 0,
+                  loaiKhachHang: 'OAuth2 User',
+                  sdt: phoneData
+                }
+                
+                console.log(`✅ Found working solution: direct call to /api/nguoidung`)
+                break // Thoát vòng lặp
+              } else {
+                console.log('❌ Direct call to /api/nguoidung failed with status:', directResponse.status)
+                continue // Thử endpoint tiếp theo
+              }
+            } catch (directError) {
+              console.log('❌ Error in direct call to /api/nguoidung:', directError.message)
+              continue // Thử endpoint tiếp theo
+            }
+          } else {
+            console.log(`⚠️ Endpoint ${i + 1} failed with status:`, customerResponse.status)
+            continue // Thử endpoint tiếp theo
+          }
+        } else {
+          console.log(`⚠️ Endpoint ${i + 1} failed with status:`, customerResponse.status)
+          continue // Thử endpoint tiếp theo
+        }
+      } catch (error) {
+        console.log(`❌ Endpoint ${i + 1} error:`, error.message)
+        continue // Thử endpoint tiếp theo
+      }
+    }
+    
+    // Nếu không tìm thấy endpoint nào hoạt động
+    if (!customerData) {
+      console.log('⚠️ No working customer endpoint found, creating basic data')
+      
+      // Kiểm tra nếu là Google OAuth2 user để tạo dữ liệu phù hợp
+      const isGoogleUser = username.includes('@gmail.com') || username.includes('@fpt.edu.vn')
+      
+      if (isGoogleUser) {
+        console.log('🔍 Fallback: Creating OAuth2 user data structure')
+        
+        // Thử gọi API /api/nguoidung một lần nữa trong fallback
+        try {
+          console.log('🔄 Fallback: Thử gọi /api/nguoidung một lần nữa...')
+          const fallbackResponse = await fetch(`${API_CONFIG.BASE_URL}/api/nguoidung/${maNguoiDung}`, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          })
+          
+          if (fallbackResponse.ok) {
+            const fallbackInfo = await fallbackResponse.json()
+            console.log('✅ Fallback: Customer info từ /api/nguoidung')
+            
+            // Xử lý dữ liệu tương tự như trên
+            let phoneData = fallbackInfo.soDienThoai || fallbackInfo.sdt || fallbackInfo.phone || fallbackInfo.dienThoai || ''
+            let addressData = fallbackInfo.diaChi || fallbackInfo.address || fallbackInfo.diaChiChiTiet || ''
+            
+            customerData = {
+              hoTen: fallbackInfo.tenNguoiDung || fallbackInfo.hoTen || username.split('@')[0],
+              soDienThoai: phoneData,
+              ngaySinh: fallbackInfo.ngaySinh || null,
+              diaChi: addressData,
+              ngayTao: fallbackInfo.ngayTao || fallbackInfo.ngayDangKy || new Date().toISOString().split('T')[0],
+              tongDonHang: 0,
+              tongChiTieu: 0,
+              // Thông tin cho Google OAuth2 user
+              maKH: fallbackInfo.maNguoiDung || fallbackInfo.maKH || maNguoiDung,
+              diemTichLuy: 0,
+              loaiKhachHang: 'OAuth2 User',
+              sdt: phoneData
+            }
+          } else {
+            console.log('❌ Fallback: Không thể lấy customer info từ /api/nguoidung')
+            // Tạo dữ liệu cơ bản
+            customerData = {
+              hoTen: username.split('@')[0],
+              soDienThoai: '',
+              ngayTao: new Date().toISOString().split('T')[0],
+              tongDonHang: 0,
+              tongChiTieu: 0,
+              diaChi: '',
+              // Thông tin cho Google OAuth2 user
+              maKH: maNguoiDung,
+              diemTichLuy: 0,
+              loaiKhachHang: 'OAuth2 User',
+              sdt: ''
+            }
+          }
+        } catch (fallbackError) {
+          console.log('❌ Fallback: Lỗi khi gọi /api/nguoidung:', fallbackError.message)
+          // Tạo dữ liệu cơ bản
+          customerData = {
+            hoTen: username.split('@')[0],
+            soDienThoai: '',
+            ngayTao: new Date().toISOString().split('T')[0],
+            tongDonHang: 0,
+            tongChiTieu: 0,
+            diaChi: '',
+            // Thông tin cho Google OAuth2 user
+            maKH: maNguoiDung,
+            diemTichLuy: 0,
+            loaiKhachHang: 'OAuth2 User',
+            sdt: ''
+          }
+        }
+      } else {
+        customerData = {
+          hoTen: username.split('@')[0],
+          soDienThoai: '',
+          ngayTao: new Date().toISOString().split('T')[0],
+          tongDonHang: 0,
+          tongChiTieu: 0,
+          diaChi: ''
+        }
+      }
+    }
+    
+    console.log('🏪 Final customer data:', customerData)
+    
+    // Step 4: Cập nhật user state với thông tin đầy đủ
+    // Xác định loginMethod dựa trên response format
+    const isOAuth2User = customerData.loaiKhachHang === 'OAuth2 User'
+    
+    const fullUserData = {
+      id: maNguoiDung,
+      name: customerData.hoTen || username.split('@')[0],
+      email: username,
+      phone: customerData.soDienThoai || '',
+      avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(customerData.hoTen || username.split('@')[0])}&background=007bff&color=fff`,
+      joinDate: customerData.ngayTao || new Date().toISOString().split('T')[0],
+      totalOrders: customerData.tongDonHang || 0,
+      totalSpent: customerData.tongChiTieu || 0,
+      role: vaiTro === 3 ? 'CUSTOMER' : 'USER',
+      loginMethod: isOAuth2User ? 'google' : 'traditional',
+      // Additional customer data
+      customerInfo: customerData,
+      userRole: vaiTro,
+      userCode: maNguoiDung
+    }
+    
+    // Update user state
+    user.value = fullUserData
+    // Save user without triggering event to avoid infinite loop
+    saveUser({ ...fullUserData, triggerEvent: false })
+    
+    console.log('✅ Profile validation completed successfully')
+    return { success: true, user: fullUserData }
+    
+  } catch (error) {
+    console.error('❌ Profile validation failed:', error)
+    
+    // Clear invalid data
+    if (error.message.includes('Token không hợp lệ') || error.message.includes('Không có token')) {
+      logout()
+    }
+    
+    return { success: false, error: error.message }
+  }
+}
+
+// ============================================================================
+// 🔄 PROFILE UPDATE FUNCTIONS
+// ============================================================================
+// Update customer profile
+const updateCustomerProfile = async (updateData) => {
+  try {
+    const token = getStorageItem('easymart-token')
+    if (!token) {
+      throw new Error('Không có token xác thực')
+    }
+    
+    // First validate profile access to get current data
+    const validation = await validateProfileAccess()
+    if (!validation.success) {
+      throw new Error(validation.error)
+    }
+    
+    const { userCode } = user.value
+    
+    // Update customer profile sử dụng endpoint chính xác
+    const updateEndpoint = `${API_CONFIG.BASE_URL}/api/khachhang/by-nguoidung/${userCode}`
+    console.log('🔗 Update customer endpoint:', updateEndpoint)
+    console.log('📤 Update data being sent:', updateData)
+    
+    const updateResponse = await fetch(updateEndpoint, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(updateData)
+    })
+    
+    if (!updateResponse.ok) {
+      throw new Error(`HTTP error! status: ${updateResponse.status}`)
+    }
+    
+    const updateResult = await updateResponse.json()
+    console.log('📥 Update response:', updateResult)
+    
+    // Kiểm tra response format khác nhau
+    if (updateResult?.success || updateResult?.result?.success || updateResult?.message?.includes('thành công')) {
+      console.log('✅ Update successful, refreshing user data...')
+      // Refresh user data
+      await validateProfileAccess()
+      return { success: true, message: 'Cập nhật profile thành công!' }
+    } else {
+      console.log('⚠️ Update response format unexpected:', updateResult)
+      // Nếu response không có success flag nhưng status 200, coi như thành công
+      if (updateResponse.ok) {
+        console.log('✅ Update successful (status 200), refreshing user data...')
+        await validateProfileAccess()
+        return { success: true, message: 'Cập nhật profile thành công!' }
+      } else {
+        throw new Error(updateResult?.message || updateResult?.error || 'Cập nhật profile thất bại')
+      }
+    }
+    
+  } catch (error) {
+    console.error('❌ Update profile failed:', error)
+    return { success: false, error: error.message }
+  }
+}
+
+// ============================================================================
+// 🧪 TESTING & DEBUG FUNCTIONS
+// ============================================================================
+// Test API endpoints để debug
+const testProfileAPIs = async () => {
+  try {
+    const token = getStorageItem('easymart-token')
+    if (!token) {
+      console.error('❌ No token available')
+      return { success: false, error: 'No token' }
+    }
+
+    console.log('🧪 Testing Profile APIs...')
+    console.log('🔑 Token available:', token.substring(0, 20) + '...')
+    
+    // Test 1: Validate token
+    console.log('🔍 Test 1: Validate token')
+    try {
+      const validateResponse = await apiCall(API_CONFIG.AUTH.VALIDATE_TOKEN, {
+        method: 'POST',
+        body: JSON.stringify({ token: token })
+      })
+      console.log('✅ Validate token success:', validateResponse)
+      
+      // Get username from response
+      const username = validateResponse?.result?.username
+      if (username) {
+        console.log('👤 Username from token:', username)
+        
+        // Test 2: Get user by email
+        console.log('🔍 Test 2: Get user by email')
+        try {
+          const emailEndpoint = API_CONFIG.USER.GET_BY_EMAIL.replace('{email}', username)
+          console.log('🔗 Testing endpoint:', emailEndpoint)
+          
+          const userResponse = await apiCall(emailEndpoint, { method: 'GET' })
+          console.log('✅ Get user by email success:', userResponse)
+          
+          // Test 3: Test customer endpoint chính xác
+          if (userResponse?.maNguoiDung) {
+            const maNguoiDung = userResponse.maNguoiDung
+            console.log('🔍 Test 3: Testing customer endpoint with maNguoiDung:', maNguoiDung)
+            
+            // Test multiple customer endpoints
+            const testEndpoints = [
+              `/api/khachhang/by-nguoidung/${maNguoiDung}`,
+              `/api/khachhang/${maNguoiDung}`,
+              `/api/nguoidung/${maNguoiDung}`,
+              `/api/khachhang/profile/${maNguoiDung}`,
+              `/api/user/profile/${maNguoiDung}`
+            ]
+            
+            for (let i = 0; i < testEndpoints.length; i++) {
+              const endpoint = testEndpoints[i]
+              console.log(`🔍 Testing endpoint ${i + 1}: ${endpoint}`)
+              
+              try {
+                const fullEndpoint = `${API_CONFIG.BASE_URL}${endpoint}`
+                console.log(`🔗 Full URL: ${fullEndpoint}`)
+                console.log('🔑 Using Authorization header with token')
+                
+                const customerResponse = await fetch(fullEndpoint, { 
+                  method: 'GET',
+                  headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                  }
+                })
+                
+                console.log(`📡 Endpoint ${i + 1} status:`, customerResponse.status)
+                const contentType = customerResponse.headers.get('content-type')
+                console.log(`📡 Endpoint ${i + 1} Content-Type:`, contentType)
+                
+                if (customerResponse.ok && contentType && contentType.includes('application/json')) {
+                  const customerData = await customerResponse.json()
+                  console.log(`✅ Endpoint ${i + 1} success:`, customerData)
+                  
+                  // Test response structure
+                  if (customerData?.result) {
+                    console.log('📊 Response structure: result object found')
+                    console.log('👤 Customer name:', customerData.result.hoTen)
+                    console.log('📱 Phone (sdt):', customerData.result.sdt)
+                    console.log('📱 Phone (soDienThoai):', customerData.result.soDienThoai)
+                    console.log('📅 Created:', customerData.result.ngayTao)
+                  } else if (customerData?.hoTen) {
+                    console.log('📊 Response structure: direct customer data')
+                    console.log('👤 Customer name:', customerData.hoTen)
+                    console.log('📱 Phone (sdt):', customerData.sdt)
+                    console.log('📱 Phone (soDienThoai):', customerData.soDienThoai)
+                    console.log('📅 Created:', customerData.ngayTao)
+                  } else {
+                    console.log('⚠️ Unexpected response structure:', customerData)
+                  }
+                  
+                  console.log(`✅ Found working endpoint: ${endpoint}`)
+                  break // Thoát vòng lặp nếu tìm thấy endpoint hoạt động
+                  
+                } else {
+                  const responseText = await customerResponse.text()
+                  console.log(`⚠️ Endpoint ${i + 1} returned non-JSON:`, responseText.substring(0, 200))
+                }
+                
+              } catch (error) {
+                console.log(`❌ Endpoint ${i + 1} failed:`, error.message)
+              }
+            }
+          }
+          
+        } catch (error) {
+          console.error('❌ Get user by email failed:', error)
+        }
+      }
+      
+    } catch (error) {
+      console.error('❌ Validate token failed:', error)
+    }
+    
+    return { success: true, message: 'API tests completed - check console for details' }
+    
+  } catch (error) {
+    console.error('❌ API tests failed:', error)
+    return { success: false, error: error.message }
+  }
+}
+
+// Test customer endpoint trực tiếp
+const testCustomerEndpoint = async (maNguoiDung) => {
+  try {
+    const token = getStorageItem('easymart-token')
+    if (!token) {
+      return { success: false, error: 'No token available' }
+    }
+
+    console.log('🧪 Testing customer endpoint directly...')
+    console.log('🔑 maNguoiDung:', maNguoiDung)
+    
+    const endpoint = `${API_CONFIG.BASE_URL}/api/khachhang/by-nguoidung/${maNguoiDung}`
+    console.log('🔗 Endpoint:', endpoint)
+    
+    // Test 1: GET request
+    console.log('🔍 Test 1: GET request')
+    try {
+      const response1 = await fetch(endpoint, { 
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      })
+      console.log('📡 GET Response status:', response1.status)
+      const data1 = await response1.json()
+      console.log('📡 GET Response data:', data1)
+    } catch (error) {
+      console.log('❌ GET Test failed:', error.message)
+    }
+    
+    // Test 2: PUT request (test update)
+    console.log('🔍 Test 2: PUT request (test update)')
+    try {
+      const testUpdateData = {
+        hoTen: 'Test Update',
+        soDienThoai: '0123456789',
+        diaChi: 'Test Address'
+      }
+      
+      console.log('📤 Test update data:', testUpdateData)
+      
+      const response2 = await fetch(endpoint, { 
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(testUpdateData)
+      })
+      console.log('📡 PUT Response status:', response2.status)
+      const data2 = await response2.json()
+      console.log('📡 PUT Response data:', data2)
+    } catch (error) {
+      console.log('❌ PUT Test failed:', error.message)
+    }
+    
+    return { success: true, message: 'Direct endpoint test completed' }
+    
+  } catch (error) {
+    console.error('❌ Direct endpoint test failed:', error)
+    return { success: false, error: error.message }
+  }
+}
+
+// ============================================================================
+// 🌐 API UTILITY FUNCTIONS
+// ============================================================================
 // Helper function to make API calls
 const apiCall = async (endpoint, options = {}) => {
   try {
@@ -436,6 +1251,9 @@ const apiCall = async (endpoint, options = {}) => {
   }
 }
 
+// ============================================================================
+// 🔑 AUTHENTICATION FUNCTIONS - LOGIN
+// ============================================================================
 // Traditional login function - sử dụng API AUTH.LOGIN mới
 const login = async (email, password) => {
   try {
@@ -534,6 +1352,9 @@ const loginWithGoogle = async (response) => {
   }
 }
 
+// ============================================================================
+// 🔑 AUTHENTICATION FUNCTIONS - OAUTH2
+// ============================================================================
 // Login with Facebook function - handle response từ FacebookSignIn component
 const loginWithFacebook = async (response) => {
   try {
@@ -561,6 +1382,9 @@ const loginWithFacebook = async (response) => {
   }
 }
 
+// ============================================================================
+// 📝 REGISTRATION FUNCTIONS
+// ============================================================================
 // Register function - sử dụng API USER.REGISTER thật
 const register = async (name, email, phone = '', password, confirmPassword, address = '') => {
   try {
@@ -692,6 +1516,9 @@ const registerWithFacebook = async (response) => {
   }
 }
 
+// ============================================================================
+// 🔑 OAUTH2 & JWT FUNCTIONS
+// ============================================================================
 // Get JWT token from backend
 const getJWTToken = async () => {
   try {
@@ -781,6 +1608,9 @@ const getUserByEmail = async (email) => {
   }
 }
 
+// ============================================================================
+// 🎭 ROLE & UTILITY FUNCTIONS
+// ============================================================================
 // Helper function to convert role number to string
 const getRoleString = (roleNumber) => {
   switch (roleNumber) {
@@ -929,6 +1759,9 @@ const handleOAuth2Callback = async () => {
   }
 }
 
+// ============================================================================
+// 🚪 LOGOUT & CLEANUP FUNCTIONS
+// ============================================================================
 // Logout function - sử dụng API AUTH.LOGOUT mới
 const logout = async () => {
   try {
@@ -975,6 +1808,9 @@ const logout = async () => {
   }
 }
 
+// ============================================================================
+// 🚀 INITIALIZATION & EXPORT
+// ============================================================================
 // Initialize user on first load
 loadUser()
 
@@ -1001,6 +1837,11 @@ export function useAuth() {
     checkAuthStatus,
     validateToken,
     handleOAuth2Callback,
+    fetchFullUserData,
+    validateProfileAccess,
+    updateCustomerProfile,
+    testProfileAPIs,
+    testCustomerEndpoint,
     // Token utilities
     decodeToken,
     isTokenValid,

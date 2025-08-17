@@ -12,26 +12,29 @@
                   <i class="fas fa-camera" style="font-size: 0.7rem;"></i>
                 </button>
               </div>
-              <h5 class="mb-1">{{ user.name }}</h5>
-              <p class="text-muted mb-0">{{ user.email }}</p>
-              <small class="text-muted">Tham gia từ {{ formatDate(user.joinDate) }}</small>
+              <h5 class="mb-1">{{ displayName }}</h5>
+              <p class="text-muted mb-0">{{ displayEmail }}</p>
+              <small class="text-muted">Tham gia từ {{ formatDate(displayJoinDate) }}</small>
             </div>
           </div>
           
           <div class="card shadow-sm border-0 mt-3">
             <div class="card-body">
-              <h6 class="card-title">Thống kê</h6>
+              <h6 class="card-title">Thông tin khách hàng</h6>
               <div class="row text-center">
                 <div class="col-6">
                   <div class="border-end">
-                    <h4 class="text-primary mb-0">{{ user.totalOrders }}</h4>
-                    <small class="text-muted">Đơn hàng</small>
+                    <h6 class="text-primary mb-0">{{ customerInfo?.maKH || 'N/A' }}</h6>
+                    <small class="text-muted">Mã KH</small>
                   </div>
                 </div>
                 <div class="col-6">
-                  <h4 class="text-success mb-0">{{ formatPrice(user.totalSpent) }}</h4>
-                  <small class="text-muted">Đã chi tiêu</small>
+                  <h6 class="text-success mb-0">{{ customerInfo?.diemTichLuy || 0 }}</h6>
+                  <small class="text-muted">Điểm tích lũy</small>
                 </div>
+              </div>
+              <div class="mt-2 text-center">
+                <span class="badge bg-info">{{ customerInfo?.loaiKhachHang || 'Thường' }}</span>
               </div>
             </div>
           </div>
@@ -86,6 +89,8 @@
                   <button type="button" class="btn-close" @click="profileError = ''"></button>
                 </div>
                 
+
+                
                 <form @submit.prevent="updateProfile">
                   <div class="row">
                     <div class="col-md-6 mb-3">
@@ -93,7 +98,8 @@
                       <div class="input-group">
                         <span class="input-group-text"><i class="fas fa-user"></i></span>
                         <input 
-                          v-model="profileForm.name" 
+                          :value="customerInfo?.hoTen || profileForm.name" 
+                          @input="profileForm.name = $event.target.value"
                           type="text" 
                           class="form-control" 
                           id="name" 
@@ -114,8 +120,10 @@
                           id="email" 
                           required
                           placeholder="Nhập email"
+                          disabled
                         >
                       </div>
+                      <small class="text-muted">Email không thể thay đổi</small>
                     </div>
                     
                     <div class="col-md-6 mb-3">
@@ -123,7 +131,8 @@
                       <div class="input-group">
                         <span class="input-group-text"><i class="fas fa-phone"></i></span>
                         <input 
-                          v-model="profileForm.phone" 
+                          :value="customerInfo?.sdt || profileForm.phone" 
+                          @input="profileForm.phone = $event.target.value"
                           type="tel" 
                           class="form-control" 
                           id="phone"
@@ -137,7 +146,8 @@
                       <div class="input-group">
                         <span class="input-group-text"><i class="fas fa-calendar"></i></span>
                         <input 
-                          v-model="profileForm.birthDate" 
+                          :value="customerInfo?.ngaySinh || profileForm.birthDate" 
+                          @input="profileForm.birthDate = $event.target.value"
                           type="date" 
                           class="form-control" 
                           id="birthDate"
@@ -150,7 +160,8 @@
                       <div class="input-group">
                         <span class="input-group-text"><i class="fas fa-map-marker-alt"></i></span>
                         <textarea 
-                          v-model="profileForm.address" 
+                          :value="customerInfo?.diaChi || profileForm.address" 
+                          @input="profileForm.address = $event.target.value"
                           class="form-control" 
                           id="address"
                           rows="3"
@@ -165,9 +176,6 @@
                       <i v-if="!isProfileLoading" class="fas fa-save me-2"></i>
                       <span v-if="isProfileLoading" class="spinner-border spinner-border-sm me-2" role="status"></span>
                       {{ isProfileLoading ? 'Đang cập nhật...' : 'Cập nhật thông tin' }}
-                    </button>
-                    <button type="button" class="btn btn-outline-secondary" @click="resetProfileForm">
-                      <i class="fas fa-undo me-2"></i>Khôi phục
                     </button>
                   </div>
                 </form>
@@ -324,13 +332,13 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '../composables/useAuth'
 
 // Composables
 const router = useRouter()
-const { user, isLoggedIn } = useAuth()
+const { user, isLoggedIn, validateProfileAccess, updateCustomerProfile } = useAuth()
 
 // Check if user is logged in
 if (!isLoggedIn.value) {
@@ -359,6 +367,7 @@ const passwordForm = ref({
 // UI states
 const isProfileLoading = ref(false)
 const isPasswordLoading = ref(false)
+
 const profileSuccess = ref('')
 const profileError = ref('')
 const passwordSuccess = ref('')
@@ -369,27 +378,77 @@ const showCurrentPassword = ref(false)
 const showNewPassword = ref(false)
 const showConfirmPassword = ref(false)
 
+// Computed properties for customer data
+const customerInfo = computed(() => user.value?.customerInfo || {})
+const displayName = computed(() => customerInfo.value.hoTen || user.value?.name || 'User')
+const displayEmail = computed(() => user.value?.email || 'No email')
+const displayJoinDate = computed(() => customerInfo.value.ngayTao || user.value?.joinDate)
+const displayOrders = computed(() => customerInfo.value.tongDonHang || user.value?.totalOrders || 0)
+const displaySpent = computed(() => customerInfo.value.tongChiTieu || user.value?.totalSpent || 0)
+
+// Debug computed properties
+const debugFormData = computed(() => ({
+  formName: profileForm.value.name,
+  customerName: customerInfo.value.hoTen,
+  userValue: user.value?.customerInfo?.hoTen,
+  formPhone: profileForm.value.phone,
+  customerPhone: customerInfo.value.sdt,
+  formAddress: profileForm.value.address,
+  customerAddress: customerInfo.value.diaChi
+}))
+
 // Methods
 const formatDate = (dateString) => {
-  return new Date(dateString).toLocaleDateString('vi-VN')
+  if (!dateString) return 'Chưa có thông tin'
+  
+  try {
+    // Handle different date formats from API
+    let date
+    if (typeof dateString === 'string') {
+      // Try to parse the date string
+      date = new Date(dateString)
+    } else if (dateString instanceof Date) {
+      date = dateString
+    } else {
+      return 'Chưa có thông tin'
+    }
+    
+    // Check if date is valid
+    if (isNaN(date.getTime())) {
+      return 'Chưa có thông tin'
+    }
+    
+    return date.toLocaleDateString('vi-VN')
+  } catch (error) {
+    console.error('Date formatting error:', error)
+    return 'Chưa có thông tin'
+  }
 }
 
 const formatPrice = (price) => {
-  return new Intl.NumberFormat('vi-VN', {
-    style: 'currency',
-    currency: 'VND'
-  }).format(price)
-}
-
-const resetProfileForm = () => {
-  profileForm.value = {
-    name: user.value.name || '',
-    email: user.value.email || '',
-    phone: user.value.phone || '',
-    birthDate: user.value.birthDate || '',
-    address: user.value.address || ''
+  if (!price || isNaN(price) || price === 0) {
+    return '0 ₫'
+  }
+  
+  try {
+    // Convert to number if it's a string
+    const numericPrice = typeof price === 'string' ? parseFloat(price) : price
+    
+    if (isNaN(numericPrice)) {
+      return '0 ₫'
+    }
+    
+    return new Intl.NumberFormat('vi-VN', {
+      style: 'currency',
+      currency: 'VND'
+    }).format(numericPrice)
+  } catch (error) {
+    console.error('Price formatting error:', error)
+    return '0 ₫'
   }
 }
+
+
 
 const resetPasswordForm = () => {
   passwordForm.value = {
@@ -399,29 +458,40 @@ const resetPasswordForm = () => {
   }
 }
 
+
+
 const updateProfile = async () => {
   profileError.value = ''
   profileSuccess.value = ''
   isProfileLoading.value = true
   
   try {
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1500))
-    
-    // Update user data in localStorage
-    const updatedUser = {
-      ...user.value,
-      ...profileForm.value
+    // Prepare update data - sử dụng field names đúng với backend
+    const updateData = {
+      hoTen: profileForm.value.name,
+      sdt: profileForm.value.phone, // Backend sử dụng sdt, không phải soDienThoai
+      ngaySinh: profileForm.value.birthDate,
+      diaChi: profileForm.value.address
     }
     
-    localStorage.setItem('easymart-user', JSON.stringify(updatedUser))
+    console.log('📝 Profile form data:', profileForm.value)
+    console.log('📤 Update data prepared:', updateData)
+    console.log('📱 Phone number being sent:', profileForm.value.phone)
     
-    // Update reactive user data
-    Object.assign(user.value, updatedUser)
+    // Call API to update profile
+    const result = await updateCustomerProfile(updateData)
     
-    profileSuccess.value = 'Thông tin cá nhân đã được cập nhật thành công!'
+    if (result.success) {
+      profileSuccess.value = result.message || 'Thông tin cá nhân đã được cập nhật thành công!'
+      // Refresh profile data
+      await validateProfileAccess()
+      // Form data will be automatically updated from customerInfo
+    } else {
+      profileError.value = result.error || 'Có lỗi xảy ra khi cập nhật thông tin!'
+    }
     
   } catch (error) {
+    console.error('Profile update error:', error)
     profileError.value = 'Có lỗi xảy ra khi cập nhật thông tin!'
   } finally {
     isProfileLoading.value = false
@@ -459,9 +529,56 @@ const changePassword = async () => {
   }
 }
 
+// Watch for changes in customerInfo and auto-update form
+watch(customerInfo, (newCustomerInfo) => {
+  if (newCustomerInfo && Object.keys(newCustomerInfo).length > 0) {
+    console.log('👀 customerInfo changed:', newCustomerInfo)
+    profileForm.value = {
+      name: newCustomerInfo.hoTen || '',
+      email: user.value?.email || '',
+      phone: newCustomerInfo.sdt || '',
+      birthDate: newCustomerInfo.ngaySinh || '',
+      address: newCustomerInfo.diaChi || ''
+    }
+    console.log('🔄 Form auto-updated from customerInfo:', profileForm.value)
+  }
+}, { immediate: true })
+
 // Initialize form data
-onMounted(() => {
-  resetProfileForm()
+onMounted(async () => {
+  try {
+    console.log('🚀 Profile page mounted, starting validation...')
+    // Validate profile access and get fresh data
+    const result = await validateProfileAccess()
+    if (result.success) {
+      console.log('✅ Profile validated successfully')
+      console.log('👤 Current customerInfo:', customerInfo.value)
+      
+      // Force update form with fresh customer data
+      if (customerInfo.value && Object.keys(customerInfo.value).length > 0) {
+        profileForm.value = {
+          name: customerInfo.value.hoTen || '',
+          email: user.value?.email || '',
+          phone: customerInfo.value.sdt || '',
+          birthDate: customerInfo.value.ngaySinh || '',
+          address: customerInfo.value.diaChi || ''
+        }
+        console.log('📝 Form populated with customer data:', profileForm.value)
+        console.log('🏷️ Name field value:', profileForm.value.name)
+        console.log('📱 Phone field value:', profileForm.value.phone)
+        console.log('📍 Address field value:', profileForm.value.address)
+      } else {
+        console.log('⚠️ customerInfo is empty or undefined')
+      }
+    } else {
+      console.error('❌ Profile validation failed:', result.error)
+      // Redirect to login if validation fails
+      router.push('/login')
+    }
+  } catch (error) {
+    console.error('❌ Profile initialization error:', error)
+    router.push('/login')
+  }
 })
 </script>
 

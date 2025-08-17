@@ -181,13 +181,8 @@ const loadCategoryProducts = async () => {
         reviews: product.danhGia || product.reviews || []
       }
       
-      // Debug: Log each mapped product
-      console.log('Mapped product:', mappedProduct)
-      
       return mappedProduct
     })
-    
-    console.log('Final categoryProducts:', categoryProducts.value)
     
   } catch (error) {
     console.error(`Failed to load products for category ${categoryId.value}:`, error)

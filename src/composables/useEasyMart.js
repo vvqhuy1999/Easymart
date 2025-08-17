@@ -63,7 +63,6 @@ export function useEasyMart() {
       }
       
       const apiProducts = await response.json()
-      console.log('📦 getProductsByCategory API response:', apiProducts)
       
       // Map API products to frontend format
       const mappedProducts = apiProducts.map(product => {
@@ -85,11 +84,8 @@ export function useEasyMart() {
           reviews: product.danhGia || product.reviews || []
         }
         
-        console.log('🔄 getProductsByCategory mapped product:', mappedProduct)
         return mappedProduct
       })
-      
-      console.log('✅ getProductsByCategory final products:', mappedProducts)
       return mappedProducts
     } catch (error) {
       console.error(`Failed to get products for category ${categoryId} from API:`, error)
@@ -176,7 +172,6 @@ export function useEasyMart() {
       }
       
       const apiProducts = await response.json()
-      console.log('📦 API Products response:', apiProducts)
       
       // Map API products to frontend format
       const mappedProducts = apiProducts.map(product => {
@@ -198,11 +193,8 @@ export function useEasyMart() {
           reviews: product.danhGia || product.reviews || []
         }
         
-        console.log('🔄 Mapped product:', mappedProduct)
         return mappedProduct
       })
-      
-      console.log('✅ Final mapped products:', mappedProducts)
       products.value = mappedProducts
     } catch (error) {
       console.error('Failed to load products from API:', error)
