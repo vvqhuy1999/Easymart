@@ -1634,7 +1634,8 @@ const logout = async () => {
 
     // 1.1) Ensure localStorage cart-like keys are cleared
     try {
-      localStorage.removeItem('easymart-cart')
+      // Legacy cart key removed (cart is backend-only now)
+      try { localStorage.removeItem('easymart-cart') } catch {}
       localStorage.removeItem('easymart-selected-items')
       localStorage.removeItem('easymart-redirect-after-login')
     } catch {}

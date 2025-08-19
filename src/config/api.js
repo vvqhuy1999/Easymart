@@ -121,24 +121,30 @@ export const API_ENDPOINTS = {
     BY_CATEGORY_ACTIVE: (categoryId) => `/api/sanpham/category/${categoryId}/active`
   },
   
-  // Cart (GioHang)
+  // Cart (GioHang) - Updated API endpoints theo hướng dẫn mới
   CART: {
+    // GET giỏ theo khách hàng (danh sách item)
     BY_CUSTOMER: (maKH) => `/api/giohang/by-khachhang/${maKH}`,
-    CREATE: '/api/giohang',
-    BY_ID: (maGH) => `/api/giohang/${maGH}`,
-    UPDATE_STATUS: (maGH) => `/api/giohang/${maGH}/status`,
-    CLEAR_ITEMS: (maGH) => `/api/giohang/${maGH}/items`,
-    WITH_ITEMS_BY_ID: (maGH) => `/api/giohang/${maGH}/with-items`,
+    // GET giỏ + tổng tiền
     BY_CUSTOMER_WITH_ITEMS: (maKH) => `/api/giohang/by-khachhang/${maKH}/with-items`,
-    SYNC: '/api/giohang/sync'
+    // Cập nhật trạng thái giỏ (Shopping -> Paid/Canceled)
+    UPDATE_STATUS: (maKH) => `/api/giohang/by-khachhang/${maKH}/status`,
+    // Xóa toàn bộ item trong giỏ (đang Shopping)
+    CLEAR_ITEMS: (maKH) => `/api/giohang/by-khachhang/${maKH}/items`,
+    // Đồng bộ giỏ từ localStorage sau khi login
+    SYNC: '/api/giohang/sync',
+    // Lấy thông tin user hiện tại (để suy ra maKH)
+    CURRENT_USER: '/api/giohang/current-user'
   },
   
-  // Cart Items (ChiTietGioHang)
+  // Cart Items - Updated API endpoints theo hướng dẫn mới
   CART_ITEMS: {
-    BY_CART: (maGH) => `/api/chitietgiohang/by-giohang/${maGH}`,
-    ADD: '/api/chitietgiohang',
-    UPDATE_QTY: (maCTGH) => `/api/chitietgiohang/${maCTGH}/quantity`,
-    REMOVE: (maCTGH) => `/api/chitietgiohang/${maCTGH}`
+    // Thêm/Cộng dồn item vào giỏ
+    ADD: '/api/giohang/items',
+    // Cập nhật số lượng item
+    UPDATE_QTY: (itemId) => `/api/giohang/items/${itemId}/quantity`,
+    // Xóa 1 item
+    REMOVE: (itemId) => `/api/giohang/items/${itemId}`
   },
   
   // Images

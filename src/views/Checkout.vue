@@ -779,8 +779,7 @@ const processOrder = async () => {
       }
     })
     
-    // Save cart changes
-    localStorage.setItem('easymart-cart', JSON.stringify(cart.value))
+    // Cart is managed by backend only; no localStorage persistence
     
     // Clear selected items from localStorage
     localStorage.removeItem('easymart-selected-items')
