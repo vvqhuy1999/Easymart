@@ -80,8 +80,7 @@ const isNewUser = ref(false)
 
 // Process OAuth2 success callback from backend
 onMounted(async () => {
-  console.log('OAuth2 Success page loaded')
-  console.log('Current URL:', window.location.href)
+  
   
   try {
     loadingMessage.value = 'Đang xử lý thông tin đăng nhập...'
@@ -94,7 +93,7 @@ onMounted(async () => {
     const role = urlParams.get('role')
     const userId = urlParams.get('userId')
     
-    console.log('OAuth2 URL params:', { success: successParam, token: token ? 'EXISTS' : 'NULL', email, role, userId })
+    
     
     if (successParam === 'true' && token) {
       // Check if user exists in our system
@@ -168,9 +167,7 @@ onMounted(async () => {
       success.value = true
       successMessage.value = `Chào mừng ${userData.name}!`
       
-      console.log('✅ OAuth2 Login successful!')
-      console.log('Token stored:', token ? 'YES' : 'NO')
-      console.log('User data:', userData)
+      
       
       // Get intended redirect path
       const redirectPath = sessionStorage.getItem('oauth2-frontend-redirect') || 

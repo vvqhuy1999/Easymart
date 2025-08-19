@@ -272,6 +272,27 @@
                       Nếu không hài lòng, hoàn tiền trong 24h.
                     </p>
                   </div>
+
+                  <!-- Extra Specs -->
+                  <div class="mt-4">
+                    <h6 class="text-primary mb-3">
+                      <i class="fas fa-list-ul me-2"></i>Thông số sản phẩm
+                    </h6>
+                    <ul class="list-unstyled small mb-0">
+                      <li v-if="currentProduct.weight">
+                        <i class="fas fa-weight-hanging text-muted me-2"></i>
+                        Trọng lượng: <strong>{{ currentProduct.weight }}</strong> <span v-if="currentProduct.weightUnit">{{ currentProduct.weightUnit }}</span>
+                      </li>
+                      <li v-if="currentProduct.weightUnit && !currentProduct.weight">
+                        <i class="fas fa-balance-scale text-muted me-2"></i>
+                        Đơn vị tính: <strong>{{ currentProduct.weightUnit }}</strong>
+                      </li>
+                      <li v-if="currentProduct.shelfLifeDays">
+                        <i class="fas fa-hourglass-half text-muted me-2"></i>
+                        Hạn sử dụng: <strong>{{ currentProduct.shelfLifeDays }} ngày</strong>
+                      </li>
+                    </ul>
+                  </div>
                 </div>
               </div>
             </div>

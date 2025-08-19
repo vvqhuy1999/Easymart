@@ -131,7 +131,7 @@ const goToPromotions = () => {
 // Handle coupon copied
 const handleCouponCopied = (couponCode) => {
   // You can add notification here if needed
-  console.log(`Coupon copied: ${couponCode}`)
+  
 }
 
 // Handle scroll for promotion button visibility

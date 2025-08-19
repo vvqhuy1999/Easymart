@@ -472,11 +472,7 @@ onMounted(() => {
   window.addEventListener('resize', handleResize, { passive: true })
   
   // Listen for user updates from OAuth flow
-  const handleUserUpdated = (event) => {
-    console.log('🔄 User updated event received:', event.detail)
-    // Không cần gọi forceReloadUser() vì user data đã được cập nhật
-    // Chỉ cần trigger reactivity nếu cần
-  }
+  const handleUserUpdated = () => {}
   
   window.addEventListener('user-updated', handleUserUpdated)
   

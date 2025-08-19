@@ -62,7 +62,7 @@ export const setToken = (token) => {
     sessionStorage.setItem(TOKEN_KEY, token)
   }
   
-  console.log(`🍪 Token stored using ${TOKEN_STORAGE_TYPE}`)
+  
 }
 
 export const getToken = () => {
@@ -88,7 +88,7 @@ export const removeToken = () => {
     sessionStorage.removeItem(TOKEN_KEY)
   }
   
-  console.log(`🗑️ Token removed from ${TOKEN_STORAGE_TYPE}`)
+  
 }
 
 // Check if token exists
@@ -124,14 +124,10 @@ export const setStorageType = (newType) => {
 
 // Debug function
 export const debugTokenStorage = () => {
-  console.log('🔍 Token Storage Debug:')
-  console.log('- Storage Type:', TOKEN_STORAGE_TYPE)
-  console.log('- Token Key:', TOKEN_KEY)
-  console.log('- Has Token:', hasToken())
-  console.log('- Token Value:', getToken() ? 'EXISTS' : 'NONE')
+  
   
   if (TOKEN_STORAGE_TYPE === 'cookie') {
-    console.log('- All Cookies:', document.cookie)
+    
   }
 }
 

@@ -132,7 +132,7 @@ export function useProductDetail(productId) {
       const mappedProduct = {
         id: apiProduct.maSP || apiProduct.id,
         name: apiProduct.tenSP || apiProduct.name,
-        price: apiProduct.giaBan || apiProduct.price,
+        price: apiProduct.giaHienTai || apiProduct.giaBan || apiProduct.price,
         originalPrice: apiProduct.giaGoc || apiProduct.originalPrice,
         categoryId: apiProduct.loaiSanPham?.maLoaiSP || apiProduct.categoryId,
         categoryName: apiProduct.loaiSanPham?.tenLoai || apiProduct.categoryName,
@@ -148,7 +148,11 @@ export function useProductDetail(productId) {
         stock: apiProduct.trongLuong || apiProduct.stock || 0,
         unit: apiProduct.donViTinh || apiProduct.unit || 'cái',
         rating: apiProduct.danhGia || apiProduct.rating || 4.5,
-        reviews: apiProduct.danhGia || apiProduct.reviews || []
+        reviews: apiProduct.danhGia || apiProduct.reviews || [],
+        // New fields from backend
+        weight: apiProduct.trongLuong || null,
+        weightUnit: apiProduct.donViTinh || null,
+        shelfLifeDays: apiProduct.hanSuDung || null
       }
       
       currentProduct.value = mappedProduct

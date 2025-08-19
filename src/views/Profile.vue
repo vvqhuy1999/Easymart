@@ -7,7 +7,7 @@
           <div class="card shadow-sm border-0">
             <div class="card-body text-center">
               <div class="position-relative d-inline-block mb-3">
-                <img :src="user.avatar" class="rounded-circle" width="80" height="80" :alt="user.name">
+                <img :src="user?.avatar || 'https://via.placeholder.com/80'" class="rounded-circle" width="80" height="80" :alt="user?.name || 'User'">
                 <button class="btn btn-sm btn-primary rounded-circle position-absolute bottom-0 end-0" style="width: 24px; height: 24px; padding: 0;">
                   <i class="fas fa-camera" style="font-size: 0.7rem;"></i>
                 </button>

@@ -254,9 +254,7 @@ const debugCurrentToken = () => {
 const checkTokenValidity = async (token) => {
   try {
     if (!token) return false // No token = invalid
-    
-    console.log('🔍 Validating token on server...')
-    
+
     // Use validate-token API to check if token is still valid
     const response = await fetch(`${API_CONFIG.BASE_URL}/api/auth/validate-token`, {
       method: 'POST',
@@ -266,36 +264,32 @@ const checkTokenValidity = async (token) => {
       },
       body: JSON.stringify({ token })
     })
-    
-    console.log('📡 Validate token response status:', response.status)
-    
+
     // If validate-token returns non-200, token is invalid
     if (!response.ok) {
-      console.log('❌ Token validation failed:', response.status, response.statusText)
+      
       return false // Token is invalid (expired, blacklisted, etc.)
     }
-    
+
     const result = await response.json()
-    console.log('📝 Validate token result:', result)
-    
+
     // Check the response format from your backend
     // Response: { "result": { "valid": true, "role": "KHACH_HANG", "username": "email@example.com", ... } }
     if (result && result.result && result.result.valid === true) {
-      console.log('✅ Token is valid on server')
       
       // If user info is not complete, fetch full user data using email
       const currentUser = user.value
       if (!currentUser || !currentUser.id || currentUser.email !== result.result.username) {
-        console.log('🔄 Updating user info from server...')
+        
         await updateUserFromValidation(result.result)
       }
-      
+
       return true // Token is valid
     } else {
-      console.log('❌ Token marked as invalid by server')
+      
       return false // Token is invalid
     }
-    
+
   } catch (error) {
     console.error('❌ Error validating token:', error)
     // If we can't validate, assume token is invalid for security
@@ -310,12 +304,10 @@ const checkTokenValidity = async (token) => {
 const updateUserFromValidation = async (validationResult) => {
   try {
     const { username: email, role, expiration } = validationResult
-    
-    console.log('🔍 Fetching full user data for:', email)
-    
+
     // Get full user info from backend using email
     const fullUserData = await getUserByEmail(email)
-    
+
     if (fullUserData && fullUserData.success && fullUserData.user) {
       const userData = {
         id: fullUserData.user.maNguoiDung || fullUserData.user.id,
@@ -332,20 +324,17 @@ const updateUserFromValidation = async (validationResult) => {
           lastValidated: new Date()
         }
       }
-      
+
       // Update reactive user state
       user.value = userData
-      
+
       // Save to localStorage for persistence
       localStorage.setItem('easymart-user', JSON.stringify(userData))
-      
-      console.log('✅ User info updated from server:', userData)
-      
+
       // Dispatch custom event for other components
       window.dispatchEvent(new CustomEvent('user-updated', { detail: userData }))
-      
+
     } else {
-      console.warn('⚠️ Could not fetch full user data, using minimal info from token')
       
       // Fallback: create minimal user object from validation result
       const minimalUser = {
@@ -360,11 +349,11 @@ const updateUserFromValidation = async (validationResult) => {
           lastValidated: new Date()
         }
       }
-      
+
       user.value = minimalUser
       localStorage.setItem('easymart-user', JSON.stringify(minimalUser))
     }
-    
+
   } catch (error) {
     console.error('❌ Error updating user from validation:', error)
   }
@@ -377,30 +366,22 @@ const updateUserFromValidation = async (validationResult) => {
 const autoLogoutIfInvalid = async () => {
   const token = getStorageItem('easymart-token')
   if (!token) {
-    console.log('🔍 Auto-logout check: No token found')
     return
   }
-  
-  console.log('🔍 Auto-logout check: Starting validation...')
-  
+
   // Check local expiration first (quick local check)
   if (!isTokenValid(token)) {
-    console.log('🔄 Token expired locally, logging out...')
     await performAutoLogout('Token đã hết hạn')
     return
   }
-  
-  console.log('✅ Token valid locally, validating on server...')
-  
+
   // Check server validation (expiration, blacklist, etc.)
   const isValidOnServer = await checkTokenValidity(token)
-  console.log('🔍 Server validation result:', isValidOnServer)
-  
+
   if (!isValidOnServer) {
-    console.log('🚫 Token invalid on server, logging out...')
     await performAutoLogout('Phiên đăng nhập không hợp lệ')
   } else {
-    console.log('✅ Token valid on server')
+    
   }
 }
 
@@ -485,7 +466,6 @@ const forceReloadUser = () => {
         joinDate: null
       }
       // KHÔNG dispatch event để tránh vòng lặp vô hạn
-      console.log('🔄 User data reloaded from localStorage')
     } catch (error) {
       console.error('Error reloading user data:', error)
       localStorage.removeItem('easymart-user')
@@ -1036,195 +1016,8 @@ const updateCustomerProfile = async (updateData) => {
   }
 }
 
-// ============================================================================
-// 🧪 TESTING & DEBUG FUNCTIONS
-// ============================================================================
-// Test API endpoints để debug
-const testProfileAPIs = async () => {
-  try {
-    const token = getStorageItem('easymart-token')
-    if (!token) {
-      console.error('❌ No token available')
-      return { success: false, error: 'No token' }
-    }
 
-    console.log('🧪 Testing Profile APIs...')
-    console.log('🔑 Token available:', token.substring(0, 20) + '...')
-    
-    // Test 1: Validate token
-    console.log('🔍 Test 1: Validate token')
-    try {
-      const validateResponse = await apiCall(API_CONFIG.AUTH.VALIDATE_TOKEN, {
-        method: 'POST',
-        body: JSON.stringify({ token: token })
-      })
-      console.log('✅ Validate token success:', validateResponse)
-      
-      // Get username from response
-      const username = validateResponse?.result?.username
-      if (username) {
-        console.log('👤 Username from token:', username)
-        
-        // Test 2: Get user by email
-        console.log('🔍 Test 2: Get user by email')
-        try {
-          const emailEndpoint = API_CONFIG.USER.GET_BY_EMAIL.replace('{email}', username)
-          console.log('🔗 Testing endpoint:', emailEndpoint)
-          
-          const userResponse = await apiCall(emailEndpoint, { method: 'GET' })
-          console.log('✅ Get user by email success:', userResponse)
-          
-          // Test 3: Test customer endpoint chính xác
-          if (userResponse?.maNguoiDung) {
-            const maNguoiDung = userResponse.maNguoiDung
-            console.log('🔍 Test 3: Testing customer endpoint with maNguoiDung:', maNguoiDung)
-            
-            // Test multiple customer endpoints
-            const testEndpoints = [
-              `/api/khachhang/by-nguoidung/${maNguoiDung}`,
-              `/api/khachhang/${maNguoiDung}`,
-              `/api/nguoidung/${maNguoiDung}`,
-              `/api/khachhang/profile/${maNguoiDung}`,
-              `/api/user/profile/${maNguoiDung}`
-            ]
-            
-            for (let i = 0; i < testEndpoints.length; i++) {
-              const endpoint = testEndpoints[i]
-              console.log(`🔍 Testing endpoint ${i + 1}: ${endpoint}`)
-              
-              try {
-                const fullEndpoint = `${API_CONFIG.BASE_URL}${endpoint}`
-                console.log(`🔗 Full URL: ${fullEndpoint}`)
-                console.log('🔑 Using Authorization header with token')
-                
-                const customerResponse = await fetch(fullEndpoint, { 
-                  method: 'GET',
-                  headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                  }
-                })
-                
-                console.log(`📡 Endpoint ${i + 1} status:`, customerResponse.status)
-                const contentType = customerResponse.headers.get('content-type')
-                console.log(`📡 Endpoint ${i + 1} Content-Type:`, contentType)
-                
-                if (customerResponse.ok && contentType && contentType.includes('application/json')) {
-                  const customerData = await customerResponse.json()
-                  console.log(`✅ Endpoint ${i + 1} success:`, customerData)
-                  
-                  // Test response structure
-                  if (customerData?.result) {
-                    console.log('📊 Response structure: result object found')
-                    console.log('👤 Customer name:', customerData.result.hoTen)
-                    console.log('📱 Phone (sdt):', customerData.result.sdt)
-                    console.log('📱 Phone (soDienThoai):', customerData.result.soDienThoai)
-                    console.log('📅 Created:', customerData.result.ngayTao)
-                  } else if (customerData?.hoTen) {
-                    console.log('📊 Response structure: direct customer data')
-                    console.log('👤 Customer name:', customerData.hoTen)
-                    console.log('📱 Phone (sdt):', customerData.sdt)
-                    console.log('📱 Phone (soDienThoai):', customerData.soDienThoai)
-                    console.log('📅 Created:', customerData.ngayTao)
-                  } else {
-                    console.log('⚠️ Unexpected response structure:', customerData)
-                  }
-                  
-                  console.log(`✅ Found working endpoint: ${endpoint}`)
-                  break // Thoát vòng lặp nếu tìm thấy endpoint hoạt động
-                  
-                } else {
-                  const responseText = await customerResponse.text()
-                  console.log(`⚠️ Endpoint ${i + 1} returned non-JSON:`, responseText.substring(0, 200))
-                }
-                
-              } catch (error) {
-                console.log(`❌ Endpoint ${i + 1} failed:`, error.message)
-              }
-            }
-          }
-          
-        } catch (error) {
-          console.error('❌ Get user by email failed:', error)
-        }
-      }
-      
-    } catch (error) {
-      console.error('❌ Validate token failed:', error)
-    }
-    
-    return { success: true, message: 'API tests completed - check console for details' }
-    
-  } catch (error) {
-    console.error('❌ API tests failed:', error)
-    return { success: false, error: error.message }
-  }
-}
-
-// Test customer endpoint trực tiếp
-const testCustomerEndpoint = async (maNguoiDung) => {
-  try {
-    const token = getStorageItem('easymart-token')
-    if (!token) {
-      return { success: false, error: 'No token available' }
-    }
-
-    console.log('🧪 Testing customer endpoint directly...')
-    console.log('🔑 maNguoiDung:', maNguoiDung)
-    
-    const endpoint = `${API_CONFIG.BASE_URL}/api/khachhang/by-nguoidung/${maNguoiDung}`
-    console.log('🔗 Endpoint:', endpoint)
-    
-    // Test 1: GET request
-    console.log('🔍 Test 1: GET request')
-    try {
-      const response1 = await fetch(endpoint, { 
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      })
-      console.log('📡 GET Response status:', response1.status)
-      const data1 = await response1.json()
-      console.log('📡 GET Response data:', data1)
-    } catch (error) {
-      console.log('❌ GET Test failed:', error.message)
-    }
-    
-    // Test 2: PUT request (test update)
-    console.log('🔍 Test 2: PUT request (test update)')
-    try {
-      const testUpdateData = {
-        hoTen: 'Test Update',
-        soDienThoai: '0123456789',
-        diaChi: 'Test Address'
-      }
-      
-      console.log('📤 Test update data:', testUpdateData)
-      
-      const response2 = await fetch(endpoint, { 
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(testUpdateData)
-      })
-      console.log('📡 PUT Response status:', response2.status)
-      const data2 = await response2.json()
-      console.log('📡 PUT Response data:', data2)
-    } catch (error) {
-      console.log('❌ PUT Test failed:', error.message)
-    }
-    
-    return { success: true, message: 'Direct endpoint test completed' }
-    
-  } catch (error) {
-    console.error('❌ Direct endpoint test failed:', error)
-    return { success: false, error: error.message }
-  }
-}
+// (removed) testCustomerEndpoint
 
 // ============================================================================
 // 🌐 API UTILITY FUNCTIONS
@@ -1310,6 +1103,39 @@ const login = async (email, password) => {
         }
         
         saveUser(userData)
+
+        // Reload cart (DB) right after successful login (fallback merge if reload fails)
+        try {
+          const cartModule = await import('./useCart')
+          if (cartModule && typeof cartModule.useCart === 'function') {
+            const { syncLocalCartToDBViaEndpoint, persistLocalToBackend, reloadCartFromBackend, mergeWithBackendOnLogin } = cartModule.useCart()
+            if (syncLocalCartToDBViaEndpoint) {
+              // 1) Preferred: sync via backend /api/giohang/sync
+              const synced = await syncLocalCartToDBViaEndpoint()
+              if (!synced?.success && persistLocalToBackend) {
+                // Fallback: per-item persist
+                await persistLocalToBackend()
+              }
+            } else if (persistLocalToBackend) {
+              await persistLocalToBackend()
+            }
+            if (reloadCartFromBackend) {
+              // Avoid duplicate merge per token
+              const token = getStorageItem('easymart-token')
+              const mergedKey = 'cart-merged-for-token'
+              if (token && sessionStorage.getItem(mergedKey) !== token) {
+                const ok = await reloadCartFromBackend()
+                if (!ok && mergeWithBackendOnLogin) {
+                  await mergeWithBackendOnLogin()
+                }
+                sessionStorage.setItem(mergedKey, token)
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('Cart merge after login failed (non-blocking):', e?.message || e)
+        }
+
         return { success: true, user: userData, message: result.message }
       } else {
         return { success: false, error: loginResponse?.result?.message || 'Email hoặc mật khẩu không đúng' }
@@ -1681,6 +1507,28 @@ const handleOAuth2Callback = async () => {
     if (token && user) {
       // Token and user already stored by OAuth2Success component
       const userData = JSON.parse(user)
+      // Reload cart (DB) after OAuth2 callback when token available
+      try {
+        const cartModule = await import('./useCart')
+        if (cartModule && typeof cartModule.useCart === 'function') {
+          const { persistLocalToBackend, reloadCartFromBackend, mergeWithBackendOnLogin } = cartModule.useCart()
+          if (persistLocalToBackend) {
+            await persistLocalToBackend()
+          }
+          if (reloadCartFromBackend) {
+            const mergedKey = 'cart-merged-for-token'
+            if (sessionStorage.getItem(mergedKey) !== token) {
+              const ok = await reloadCartFromBackend()
+              if (!ok && mergeWithBackendOnLogin) {
+                await mergeWithBackendOnLogin()
+              }
+              sessionStorage.setItem(mergedKey, token)
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Cart merge after OAuth2 login failed (non-blocking):', e?.message || e)
+      }
       return { success: true, user: userData }
     }
     
@@ -1765,6 +1613,32 @@ const handleOAuth2Callback = async () => {
 // Logout function - sử dụng API AUTH.LOGOUT mới
 const logout = async () => {
   try {
+    // 1) Persist local cart to backend (GioHang) before clearing auth
+    try {
+      const cartModule = await import('./useCart')
+      if (cartModule && typeof cartModule.useCart === 'function') {
+        const { persistLocalToBackendAndClear, clearCart } = cartModule.useCart()
+        if (persistLocalToBackendAndClear) {
+          await persistLocalToBackendAndClear()
+        }
+        // Ensure reactive cart state is cleared immediately
+        if (clearCart) {
+          await clearCart()
+        }
+        // Notify UI listeners (optional)
+        try { window.dispatchEvent(new CustomEvent('cart-updated', { detail: { action: 'cleared' } })) } catch {}
+      }
+    } catch (e) {
+      console.warn('Persist cart on logout failed (non-blocking):', e?.message || e)
+    }
+
+    // 1.1) Ensure localStorage cart-like keys are cleared
+    try {
+      localStorage.removeItem('easymart-cart')
+      localStorage.removeItem('easymart-selected-items')
+      localStorage.removeItem('easymart-redirect-after-login')
+    } catch {}
+
     const token = getStorageItem('easymart-token')
     
     if (token) {
@@ -1840,8 +1714,6 @@ export function useAuth() {
     fetchFullUserData,
     validateProfileAccess,
     updateCustomerProfile,
-    testProfileAPIs,
-    testCustomerEndpoint,
     // Token utilities
     decodeToken,
     isTokenValid,

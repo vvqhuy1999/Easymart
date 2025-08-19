@@ -70,9 +70,9 @@
       
       <div class="mb-auto">
         <span v-if="product.originalPrice" class="text-muted text-decoration-line-through me-2" style="font-size: 0.875rem;">
-          {{ formatPrice(product.originalPrice) }}
+          {{ formatPrice(numberize(product.originalPrice)) }}
         </span>
-        <span class="fw-bold text-primary fs-5">{{ formatPrice(product.price) }}</span>
+        <span class="fw-bold text-primary fs-5">{{ formatPrice(displayPrice) }}</span>
       </div>
       
       <div class="mt-3">
@@ -93,7 +93,7 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 
 // Props
 const props = defineProps({
@@ -133,6 +133,19 @@ const randomReviewCount = computed(() => {
 })
 
 // Methods
+const numberize = (val) => {
+  const n = Number(val)
+  return Number.isFinite(n) ? n : 0
+}
+
+const displayPrice = computed(() => {
+  const p1 = numberize(props.product.price)
+  const p2 = numberize(props.product.giaHienTai)
+  return p1 > 0 ? p1 : (p2 > 0 ? p2 : 0)
+})
+
+// Debug: log when product changes
+watch(() => props.product, () => {}, { immediate: false, deep: false })
 const handleAddToCart = async () => {
   isLoading.value = true
   try {

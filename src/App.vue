@@ -13,7 +13,6 @@
       :searchResults="searchResults"
       @update-search="searchQuery = $event"
       @add-to-cart="addToCart"
-      @view-product="viewProduct"
     />
     <!-- Router View - Hiển thị các view components theo route -->
     <div class="router-view-container">

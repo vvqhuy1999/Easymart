@@ -266,7 +266,10 @@ const showLoadingState = ref(false)
 // ==================== COMPUTED PROPERTIES ====================
 // Danh sách sản phẩm đã được sắp xếp theo sortBy
 const sortedProducts = computed(() => {
-  let sorted = [...props.products]
+  let sorted = [...props.products].map(p => ({
+    ...p,
+    price: Number.isFinite(Number(p.price)) && Number(p.price) > 0 ? Number(p.price) : Number(p.giaHienTai) || 0
+  }))
   
   switch (sortBy.value) {
     case 'name':

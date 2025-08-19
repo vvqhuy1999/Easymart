@@ -158,15 +158,15 @@ const loadCategoryProducts = async () => {
     
     const apiProducts = await response.json()
     
-    // Debug: Log API response
-    console.log('API Response for category', categoryId.value, ':', apiProducts)
+    // Debug: Log mapped prices
+    console.log('[Category] API raw length:', Array.isArray(apiProducts) ? apiProducts.length : -1)
     
     // Map API products to frontend format
     categoryProducts.value = apiProducts.map(product => {
       const mappedProduct = {
         id: product.maSP || product.id,
         name: product.tenSP || product.name,
-        price: product.giaBan || product.price,
+        price: product.giaHienTai || product.giaBan || product.price,
         originalPrice: product.giaGoc || product.originalPrice,
         categoryId: product.loaiSanPham?.maLoaiSP || product.categoryId,
         categoryName: product.loaiSanPham?.tenLoai || product.categoryName,
@@ -183,6 +183,7 @@ const loadCategoryProducts = async () => {
       
       return mappedProduct
     })
+    console.log('[Category] Mapped products:', categoryProducts.value.map(p => ({ id: p.id, price: p.price, giaHienTai: p.giaHienTai })))
     
   } catch (error) {
     console.error(`Failed to load products for category ${categoryId.value}:`, error)

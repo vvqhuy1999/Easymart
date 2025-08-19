@@ -69,7 +69,7 @@ export function useEasyMart() {
         const mappedProduct = {
           id: product.maSP || product.id,
           name: product.tenSP || product.name,
-          price: product.giaBan || product.price,
+          price: product.giaHienTai || product.giaBan || product.price,
           originalPrice: product.giaGoc || product.originalPrice,
           categoryId: product.loaiSanPham?.maLoaiSP || product.categoryId,
           categoryName: product.loaiSanPham?.tenLoai || product.categoryName,
@@ -86,7 +86,9 @@ export function useEasyMart() {
         
         return mappedProduct
       })
-      return mappedProducts
+      // Ensure prices if missing from category endpoint
+      const ensured = await ensurePrices(mappedProducts)
+      return ensured
     } catch (error) {
       console.error(`Failed to get products for category ${categoryId} from API:`, error)
       // Không có fallback data, trả về array rỗng
@@ -100,10 +102,12 @@ export function useEasyMart() {
 
   // Utility functions
   const formatPrice = (price) => {
+    const numeric = Number(price)
+    const value = Number.isFinite(numeric) ? numeric : 0
     return new Intl.NumberFormat('vi-VN', {
       style: 'currency',
       currency: 'VND'
-    }).format(price)
+    }).format(value)
   }
 
   const showNotification = (message, type = 'success') => {
@@ -178,7 +182,7 @@ export function useEasyMart() {
         const mappedProduct = {
           id: product.maSP || product.id,
           name: product.tenSP || product.name,
-          price: product.giaBan || product.price,
+          price: product.giaHienTai || product.giaBan || product.price,
           originalPrice: product.giaGoc || product.originalPrice,
           categoryId: product.loaiSanPham?.maLoaiSP || product.categoryId,
           categoryName: product.loaiSanPham?.tenLoai || product.categoryName,
@@ -195,12 +199,31 @@ export function useEasyMart() {
         
         return mappedProduct
       })
-      products.value = mappedProducts
+      // Ensure prices (should already have giaHienTai on this endpoint, but keep safe)
+      products.value = await ensurePrices(mappedProducts)
     } catch (error) {
       console.error('Failed to load products from API:', error)
       // Không có fallback data, products sẽ là array rỗng
       products.value = []
     }
+  }
+
+  // Ensure price for products missing price by fetching detail
+  const ensurePrices = async (list) => {
+    const result = await Promise.all(list.map(async (p) => {
+      const numeric = Number(p.price)
+      if (Number.isFinite(numeric) && numeric > 0) return p
+      try {
+        const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.PRODUCTS.BY_ID(p.id)}`)
+        if (res.ok) {
+          const d = await res.json()
+          const fixed = d.giaHienTai || d.giaBan || d.price || 0
+          return { ...p, price: fixed }
+        }
+      } catch {}
+      return p
+    }))
+    return result
   }
 
   // Initialize on mount

@@ -121,6 +121,26 @@ export const API_ENDPOINTS = {
     BY_CATEGORY_ACTIVE: (categoryId) => `/api/sanpham/category/${categoryId}/active`
   },
   
+  // Cart (GioHang)
+  CART: {
+    BY_CUSTOMER: (maKH) => `/api/giohang/by-khachhang/${maKH}`,
+    CREATE: '/api/giohang',
+    BY_ID: (maGH) => `/api/giohang/${maGH}`,
+    UPDATE_STATUS: (maGH) => `/api/giohang/${maGH}/status`,
+    CLEAR_ITEMS: (maGH) => `/api/giohang/${maGH}/items`,
+    WITH_ITEMS_BY_ID: (maGH) => `/api/giohang/${maGH}/with-items`,
+    BY_CUSTOMER_WITH_ITEMS: (maKH) => `/api/giohang/by-khachhang/${maKH}/with-items`,
+    SYNC: '/api/giohang/sync'
+  },
+  
+  // Cart Items (ChiTietGioHang)
+  CART_ITEMS: {
+    BY_CART: (maGH) => `/api/chitietgiohang/by-giohang/${maGH}`,
+    ADD: '/api/chitietgiohang',
+    UPDATE_QTY: (maCTGH) => `/api/chitietgiohang/${maCTGH}/quantity`,
+    REMOVE: (maCTGH) => `/api/chitietgiohang/${maCTGH}`
+  },
+  
   // Images
   IMAGES: {
     PRODUCT_LIST: (productId) => `/api/hinhanh/product/${productId}`,
