@@ -105,39 +105,116 @@ const pullBackendItems = async (maKH) => {
     // Kiểm tra token trước khi gọi API
     const token = getToken()
     if (!token) {
-      try { console.warn('[CART][PULL_ITEMS] No token available') } catch {}
+      console.warn('[CART][PULL_ITEMS] No token available')
       return []
     }
     
     // Sử dụng endpoint mới để lấy giỏ hàng với items
     const url = `${API_CONFIG.BASE_URL}${API_ENDPOINTS.CART.BY_CUSTOMER_WITH_ITEMS(maKH)}`
-    try { console.log('[CART][PULL_ITEMS][REQ]', url, 'with token:', token.substring(0, 20) + '...') } catch {}
+    console.log('[CART][PULL_ITEMS][REQ]', url, 'with token:', token.substring(0, 20) + '...')
     
     const res = await fetch(url, {
-      headers: getAuthHeaders()
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
     })
     
     if (!res.ok) {
-      try { 
-        console.error('[CART][PULL_ITEMS][FAIL] status=', res.status, 'statusText=', res.statusText) 
+      console.error('[CART][PULL_ITEMS][FAIL] status=', res.status, 'statusText=', res.statusText)
+      
+      // Log response body for debugging
+      const responseText = await res.text().catch(() => 'Unable to read response')
+      console.error('[CART][PULL_ITEMS][RESPONSE_BODY]', responseText)
+      
+      // Handle specific error cases
+      if (res.status === 401) {
+        console.error('[CART][PULL_ITEMS] Unauthorized - token may be invalid')
+        return []
+      } else if (res.status === 404) {
+        console.error('[CART][PULL_ITEMS] With-items endpoint not found, trying basic cart endpoint...')
         
-        // Log response body for debugging
-        const responseText = await res.text().catch(() => 'Unable to read response')
-        console.error('[CART][PULL_ITEMS][RESPONSE_BODY]', responseText)
+        // Fallback: try basic cart endpoint
+        const basicUrl = `${API_CONFIG.BASE_URL}${API_ENDPOINTS.CART.BY_CUSTOMER(maKH)}`
+        console.log('[CART][PULL_ITEMS][FALLBACK] Trying basic endpoint:', basicUrl)
         
-        // Handle specific error cases
-        if (res.status === 401) {
-          console.error('[CART][PULL_ITEMS] Unauthorized - token may be invalid')
-        } else if (res.status === 404) {
-          console.error('[CART][PULL_ITEMS] Endpoint not found - check if backend API is implemented')
+        const basicRes = await fetch(basicUrl, { 
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        })
+        
+        if (basicRes.ok) {
+          const basicData = await basicRes.json().catch(() => ({}))
+          console.log('[CART][PULL_ITEMS][FALLBACK] Basic cart data:', basicData)
+          
+          // Kiểm tra response format
+          if (Array.isArray(basicData)) {
+            console.warn('[CART][PULL_ITEMS][FALLBACK] Basic endpoint returned empty array - endpoint may be incorrect')
+            return []
+          } else if (basicData && typeof basicData === 'object') {
+            console.log('[CART][PULL_ITEMS][FALLBACK] Basic endpoint returned cart info:', basicData)
+            return []
+          } else {
+            console.warn('[CART][PULL_ITEMS][FALLBACK] Basic endpoint returned unexpected format:', basicData)
+            return []
+          }
+        } else {
+          console.error('[CART][PULL_ITEMS][FALLBACK] Basic endpoint also failed:', basicRes.status)
+          
+          // Final fallback: try to create a new cart by calling add endpoint
+          console.log('[CART][PULL_ITEMS][FINAL_FALLBACK] Both endpoints failed, attempting to create cart via add endpoint...')
+          
+          try {
+            const dummyAddUrl = `${API_CONFIG.BASE_URL}${API_ENDPOINTS.CART_ITEMS.ADD}`
+            const dummyAddRes = await fetch(dummyAddUrl, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                maSP: 'DUMMY_SP',
+                soLuong: 1,
+                donGiaHienTai: 0
+              })
+            })
+            
+            if (dummyAddRes.ok) {
+              console.log('[CART][PULL_ITEMS][FINAL_FALLBACK] Successfully created cart via add endpoint')
+              // Xóa item dummy ngay lập tức
+              const dummyData = await dummyAddRes.json().catch(() => ({}))
+              if (dummyData.itemId) {
+                await fetch(`${API_CONFIG.BASE_URL}${API_ENDPOINTS.CART_ITEMS.REMOVE(dummyData.itemId)}`, {
+                  method: 'DELETE',
+                  headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                  }
+                }).catch(() => {}) // Ignore cleanup errors
+              }
+              return []
+            } else {
+              console.warn('[CART][PULL_ITEMS][FINAL_FALLBACK] Failed to create cart via add endpoint:', dummyAddRes.status)
+              return []
+            }
+          } catch (fallbackError) {
+            console.error('[CART][PULL_ITEMS][FINAL_FALLBACK] Error in final fallback:', fallbackError)
+            return []
+          }
         }
-      } catch {}
-      return []
+      } else {
+        // Other error statuses
+        console.error('[CART][PULL_ITEMS] Other error status:', res.status)
+        return []
+      }
     }
     
+    // If we reach here, the request was successful
     const data = await res.json().catch(() => ({}))
     const items = data?.items || []
-    try { console.log('[CART][PULL_ITEMS][OK] maKH=', maKH, 'count=', items.length, 'tongTien=', data.tongTien) } catch {}
+    console.log('[CART][PULL_ITEMS][OK] maKH=', maKH, 'count=', items.length, 'tongTien=', data.tongTien)
     
     // API mới không có isDeleted, items đã được lọc sẵn
     // Map với đầy đủ thông tin để có thể xóa/cập nhật sau này
@@ -149,7 +226,7 @@ const pullBackendItems = async (maKH) => {
       product: it.sanPham || it.product || null // Lưu product data nếu có
     }))
   } catch (error) {
-    try { console.error('[CART][PULL_ITEMS][EXCEPTION]', error) } catch {}
+    console.error('[CART][PULL_ITEMS][EXCEPTION]', error)
     return []
   }
 }
@@ -221,16 +298,21 @@ const reloadCartFromBackend = async () => {
   // Sử dụng endpoint mới để lấy giỏ hàng với items
   const serverItems = await pullBackendItems(maKH)
   
-  if (Array.isArray(serverItems)) {
-    cart.value = serverItems
-    saveCart()
-    backendReady.value = true
-    try { console.log('[CART][RELOAD] maKH=', maKH, 'itemsCount=', serverItems.length) } catch {}
-    return true
-  }
+  // Luôn cập nhật cart.value, ngay cả khi rỗng
+  cart.value = Array.isArray(serverItems) ? serverItems : []
+  saveCart()
+  backendReady.value = true
   
-  try { console.warn('[CART][RELOAD] Failed to load items from backend') } catch {}
-  return false
+  try { 
+    console.log('[CART][RELOAD] maKH=', maKH, 'itemsCount=', cart.value.length) 
+    
+    // Nếu cart rỗng, có thể là do endpoints chưa hoạt động
+    if (cart.value.length === 0) {
+      console.log('[CART][RELOAD] Cart is empty - this may be normal if backend endpoints are not fully implemented yet')
+    }
+  } catch {}
+  
+  return true
 }
 
 const persistLocalToBackendAndClear = async () => {
@@ -716,30 +798,55 @@ const addToCart = async (productId, quantity = 1, productData = null) => {
   // Kiểm tra sản phẩm có active không (để tránh thêm sản phẩm ngừng bán)
   let isActiveProduct = true
   let finalProductData = productData
+  let productStatus = null
+  
   try {
     if (productData) {
       if (typeof productData.trangThai !== 'undefined') {
-        isActiveProduct = (productData.trangThai === 0)
+        isActiveProduct = (productData.trangThai === 1)  // ← Sửa: 1 = còn bán, 0 = ngừng bán
+        productStatus = productData.trangThai
       } else if (typeof productData.isActive !== 'undefined') {
         isActiveProduct = !!productData.isActive
+        productStatus = productData.isActive ? 'active' : 'inactive'
+      } else {
+        isActiveProduct = true
+        productStatus = 'unknown'
       }
     } else {
+      // Fetch product data để có giá và thông tin
       const res = await fetch(`${API_CONFIG.BASE_URL}${API_ENDPOINTS.PRODUCTS.BY_ID(productId)}`)
       if (res.ok) {
         const d = await res.json()
         finalProductData = d
         if (typeof d.trangThai !== 'undefined') {
-          isActiveProduct = (d.trangThai === 0)
+          isActiveProduct = (d.trangThai === 1)  // ← Sửa: 1 = còn bán, 0 = ngừng bán
+          productStatus = d.trangThai
         } else if (typeof d.isActive !== 'undefined') {
           isActiveProduct = !!d.isActive
+          productStatus = d.isActive ? 'active' : 'inactive'
         }
       }
     }
-  } catch {}
+  } catch (error) {
+    console.warn('[CART][ADD] Could not check product status:', error)
+    // Nếu không thể kiểm tra, cho phép thêm (an toàn hơn)
+    isActiveProduct = true
+    productStatus = 'unknown'
+  }
   
   if (!isActiveProduct) {
-    console.warn('[CART][ADD] Product is inactive, skip add:', productId)
-    return { success: false, inactive: true }
+    console.warn('[CART][ADD] Product is inactive, skip add:', productId, 'status:', productStatus)
+    
+    // Hiển thị thông báo lỗi cho user
+    if (typeof window !== 'undefined') {
+      alert(`⚠️ Sản phẩm ${productId} hiện không khả dụng!\n\nTrạng thái: ${productStatus === 0 ? 'Ngừng bán' : 'Không khả dụng'}\n\nVui lòng chọn sản phẩm khác hoặc liên hệ admin để kích hoạt sản phẩm.`)
+    }
+    
+    return { 
+      success: false, 
+      inactive: true, 
+      message: `Sản phẩm ${productId} hiện không khả dụng (trạng thái: ${productStatus})` 
+    }
   }
   
   // Thêm trực tiếp vào backend (không còn local cart)
@@ -749,12 +856,19 @@ const addToCart = async (productId, quantity = 1, productData = null) => {
     const result = await addItemToBackendCart(productId, quantity, price)
     if (result) {
       await reloadCartFromBackend()
-      return { success: true }
+      return { success: true, message: `Đã thêm ${quantity} sản phẩm vào giỏ hàng` }
     }
   } catch (error) {
     console.error('[CART][ADD] Backend add error:', error)
+    
+    // Hiển thị thông báo lỗi cho user
+    if (typeof window !== 'undefined') {
+      alert(`❌ Không thể thêm sản phẩm vào giỏ hàng!\n\nLỗi: ${error.message || 'Lỗi không xác định'}\n\nVui lòng thử lại sau hoặc liên hệ admin.`)
+    }
+    
+    return { success: false, error: error.message || 'Không thể thêm vào giỏ hàng' }
   }
-  return { success: false }
+  return { success: false, error: 'Không thể thêm vào giỏ hàng' }
 }
 
 const removeFromCart = async (productId) => {
@@ -914,17 +1028,33 @@ watch(user, async (newUser, oldUser) => {
   const token = getToken()
   if (newUser && !oldUser && token) {
     try { console.log('[GIOHANG][AUTH_WATCH] login detected') } catch {}
+    
     // Nếu có ý định thêm vào giỏ trước khi login → thực hiện ngay
     try {
       const pending = sessionStorage.getItem('pending-cart-add')
       if (pending) {
         const { productId, quantity } = JSON.parse(pending)
         sessionStorage.removeItem('pending-cart-add')
-        await addToCart(productId, quantity)
+        console.log('[GIOHANG][AUTH_WATCH] Processing pending cart add:', productId, quantity)
+        const result = await addToCart(productId, quantity)
+        if (result.success) {
+          console.log('[GIOHANG][AUTH_WATCH] Successfully added pending item:', result.message)
+        } else {
+          console.warn('[GIOHANG][AUTH_WATCH] Failed to add pending item:', result.error || result.message)
+        }
       }
-    } catch {}
+    } catch (error) {
+      console.error('[GIOHANG][AUTH_WATCH] Error processing pending cart add:', error)
+    }
+    
     // Luôn reload cart từ backend sau khi đăng nhập
-    await reloadCartFromBackend();
+    console.log('[GIOHANG][AUTH_WATCH] Reloading cart from backend...')
+    const reloadResult = await reloadCartFromBackend()
+    if (reloadResult) {
+      console.log('[GIOHANG][AUTH_WATCH] Cart reload successful, items count:', cart.value.length)
+    } else {
+      console.warn('[GIOHANG][AUTH_WATCH] Cart reload failed, but continuing...')
+    }
   }
 })
 

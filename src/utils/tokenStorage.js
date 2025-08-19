@@ -8,10 +8,10 @@
 // Configuration
 const TOKEN_STORAGE_TYPE = 'cookie' // 'localStorage', 'sessionStorage', or 'cookie'
 const TOKEN_KEY = 'easymart-token'
-const TOKEN_EXPIRY_DAYS = 7
+const TOKEN_EXPIRY_DAYS = 1
 
 // Cookie utility functions
-const setCookie = (name, value, days = 7, secure = false, httpOnly = false) => {
+const setCookie = (name, value, days = 1, secure = false, httpOnly = false) => {
   let expires = ''
   if (days) {
     const date = new Date()
@@ -41,7 +41,10 @@ const getCookie = (name) => {
   for (let i = 0; i < ca.length; i++) {
     let c = ca[i]
     while (c.charAt(0) === ' ') c = c.substring(1, c.length)
-    if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length)
+    if (c.indexOf(nameEQ) === 0) {
+      const value = c.substring(nameEQ.length, c.length)
+      return value
+    }
   }
   return null
 }
@@ -61,8 +64,6 @@ export const setToken = (token) => {
   } else {
     sessionStorage.setItem(TOKEN_KEY, token)
   }
-  
-  
 }
 
 export const getToken = () => {
@@ -87,8 +88,6 @@ export const removeToken = () => {
   } else {
     sessionStorage.removeItem(TOKEN_KEY)
   }
-  
-  
 }
 
 // Check if token exists
@@ -115,8 +114,6 @@ export const setStorageType = (newType) => {
     if (currentToken) {
       setToken(currentToken)
     }
-    
-    console.log(`🔄 Storage type changed to: ${newType}`)
   } else {
     console.error('Invalid storage type. Use: localStorage, sessionStorage, or cookie')
   }
@@ -124,11 +121,25 @@ export const setStorageType = (newType) => {
 
 // Debug function
 export const debugTokenStorage = () => {
-  
+  console.log('🔍 [TOKEN] Debug Token Storage:')
+  console.log(`📋 Storage type: ${TOKEN_STORAGE_TYPE}`)
+  console.log(`📋 Token key: ${TOKEN_KEY}`)
+  console.log(`📋 Expiry days: ${TOKEN_EXPIRY_DAYS}`)
   
   if (TOKEN_STORAGE_TYPE === 'cookie') {
-    
+    console.log('🍪 Cookie details:')
+    console.log('📋 All cookies:', document.cookie)
+    console.log('📋 Target cookie:', getCookie(TOKEN_KEY))
+  } else if (TOKEN_STORAGE_TYPE === 'localStorage') {
+    console.log('💾 LocalStorage details:')
+    console.log('📋 Token exists:', localStorage.getItem(TOKEN_KEY) ? 'Yes' : 'No')
+  } else {
+    console.log('💾 SessionStorage details:')
+    console.log('📋 Token exists:', sessionStorage.getItem(TOKEN_KEY) ? 'Yes' : 'No')
   }
+  
+  console.log('📋 Current token:', getToken())
+  console.log('📋 Has token:', hasToken())
 }
 
 // Export for easy access

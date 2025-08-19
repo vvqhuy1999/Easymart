@@ -1,150 +1,156 @@
-// Debug script để test Cart API
-// Chạy trong browser console sau khi đăng nhập
+// Debug script để test cart API endpoints
+// Copy và paste vào browser console để chạy
 
-console.log('🚀 Cart API Debug Script loaded')
-
-// Import useCart (nếu có thể)
-// const { testCartAPIConnection } = useCart()
-
-// Debug function để test từng bước
 const debugCartAPI = async () => {
-  console.log('🧪 Starting Cart API Debug...')
+  console.log('🧪 [CART][DEBUG] Starting comprehensive cart API test...')
   
   // 1. Kiểm tra token
-  const token = localStorage.getItem('easymart-token')
-  if (!token) {
-    console.error('❌ No token found in localStorage')
-    return
-  }
-  console.log('✅ Token found:', token.substring(0, 20) + '...')
-  
-  // 2. Kiểm tra token validity
-  try {
-    const payload = JSON.parse(atob(token.split('.')[1]))
-    const now = Math.floor(Date.now() / 1000)
-    const isExpired = payload.exp < now
-    console.log('📋 Token payload:', payload)
-    console.log('⏰ Token expiry:', new Date(payload.exp * 1000))
-    console.log('🕐 Current time:', new Date())
-    console.log(isExpired ? '❌ Token is EXPIRED' : '✅ Token is valid')
+  const token = localStorage.getItem('easymart-token') || document.cookie.split(';').find(c => c.trim().startsWith('easymart-token='))?.split('=')[1]
+  console.log('🔑 [CART][DEBUG] Token found:', !!token)
+  if (token) {
+    console.log('🔑 [CART][DEBUG] Token preview:', token.substring(0, 20) + '...')
     
-    if (isExpired) {
-      console.error('❌ Token expired, please login again')
-      return
+    // Decode JWT để kiểm tra
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]))
+      console.log('🔍 [CART][DEBUG] Token payload:', payload)
+      console.log('⏰ [CART][DEBUG] Token expires:', new Date(payload.exp * 1000))
+      console.log('✅ [CART][DEBUG] Token valid:', payload.exp > Date.now() / 1000)
+    } catch (e) {
+      console.error('❌ [CART][DEBUG] Token decode failed:', e)
     }
-  } catch (e) {
-    console.error('❌ Invalid token format:', e)
-    return
   }
+  
+  // 2. Kiểm tra user info
+  const user = JSON.parse(localStorage.getItem('easymart-user') || 'null')
+  console.log('👤 [CART][DEBUG] User info:', user)
   
   // 3. Test current-user endpoint
-  console.log('🧪 Testing current-user endpoint...')
+  console.log('🧪 [CART][DEBUG] Testing current-user endpoint...')
   try {
     const currentUserRes = await fetch('http://localhost:8080/api/giohang/current-user', {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
+      headers: { 'Authorization': `Bearer ${token}` }
     })
-    
-    console.log('📊 Current-user status:', currentUserRes.status)
+    console.log('📊 [CART][DEBUG] Current-user status:', currentUserRes.status)
     
     if (currentUserRes.ok) {
-      const userData = await currentUserRes.json()
-      console.log('✅ Current-user data:', userData)
+      const currentUserData = await currentUserRes.json()
+      console.log('✅ [CART][DEBUG] Current-user data:', currentUserData)
       
-      // 4. Test cart endpoints with resolved maKH
-      const maKH = userData.maKH
+      // 4. Test cart endpoints với maKH từ current-user
+      const maKH = currentUserData.maKH
       if (maKH) {
-        await testCartEndpoints(maKH, token)
+        console.log('🏪 [CART][DEBUG] Testing cart endpoints with maKH:', maKH)
+        
+        // Test basic cart endpoint
+        console.log('🧪 [CART][DEBUG] Testing basic cart endpoint...')
+        const basicCartRes = await fetch(`http://localhost:8080/api/giohang/by-khachhang/${maKH}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+        console.log('📊 [CART][DEBUG] Basic cart status:', basicCartRes.status)
+        
+        if (basicCartRes.ok) {
+          const basicCartData = await basicCartRes.json()
+          console.log('✅ [CART][DEBUG] Basic cart data:', basicCartData)
+          
+          // Kiểm tra response format
+          if (Array.isArray(basicCartData)) {
+            console.log('⚠️ [CART][DEBUG] Basic endpoint returned array - this may be incorrect')
+          } else if (basicCartData && typeof basicCartData === 'object') {
+            console.log('✅ [CART][DEBUG] Basic endpoint returned object - this looks correct')
+          }
+        } else {
+          const errorText = await basicCartRes.text().catch(() => 'Unable to read')
+          console.error('❌ [CART][DEBUG] Basic cart error:', errorText)
+        }
+        
+        // Test with-items endpoint
+        console.log('🧪 [CART][DEBUG] Testing with-items endpoint...')
+        const withItemsRes = await fetch(`http://localhost:8080/api/giohang/by-khachhang/${maKH}/with-items`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+        console.log('📊 [CART][DEBUG] With-items status:', withItemsRes.status)
+        
+        if (withItemsRes.ok) {
+          const withItemsData = await withItemsRes.json()
+          console.log('✅ [CART][DEBUG] With-items data:', withItemsData)
+        } else {
+          const errorText = await withItemsRes.text().catch(() => 'Unable to read')
+          console.error('❌ [CART][DEBUG] With-items error:', errorText)
+        }
+        
+        // Test add item endpoint
+        console.log('🧪 [CART][DEBUG] Testing add item endpoint...')
+        const addItemRes = await fetch('http://localhost:8080/api/giohang/items', {
+          method: 'POST',
+          headers: { 
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            maSP: 'TEST_SP',
+            soLuong: 1,
+            donGiaHienTai: 10000
+          })
+        })
+        console.log('📊 [CART][DEBUG] Add item status:', addItemRes.status)
+        
+        if (addItemRes.ok) {
+          const addItemData = await addItemRes.json()
+          console.log('✅ [CART][DEBUG] Add item success:', addItemData)
+          
+          // Cleanup: xóa item test
+          if (addItemData.itemId) {
+            console.log('🧹 [CART][DEBUG] Cleaning up test item...')
+            const deleteRes = await fetch(`http://localhost:8080/api/giohang/items/${addItemData.itemId}`, {
+              method: 'DELETE',
+              headers: { 'Authorization': `Bearer ${token}` }
+            })
+            console.log('🧹 [CART][DEBUG] Cleanup status:', deleteRes.status)
+          }
+        } else {
+          const errorText = await addItemRes.text().catch(() => 'Unable to read')
+          console.error('❌ [CART][DEBUG] Add item error:', errorText)
+        }
+        
       } else {
-        console.error('❌ No maKH in current-user response')
+        console.error('❌ [CART][DEBUG] No maKH found in current-user response')
       }
     } else {
-      const errorText = await currentUserRes.text()
-      console.error('❌ Current-user error:', errorText)
+      const errorText = await currentUserRes.text().catch(() => 'Unable to read')
+      console.error('❌ [CART][DEBUG] Current-user error:', errorText)
     }
   } catch (error) {
-    console.error('❌ Current-user exception:', error)
-  }
-}
-
-// Test các cart endpoints
-const testCartEndpoints = async (maKH, token) => {
-  console.log('🧪 Testing cart endpoints with maKH:', maKH)
-  
-  const headers = {
-    'Authorization': `Bearer ${token}`,
-    'Content-Type': 'application/json'
+    console.error('❌ [CART][DEBUG] Test failed:', error)
   }
   
-  // Test 1: Basic cart endpoint
-  console.log('🧪 Testing basic cart endpoint...')
+  // 5. Test product endpoints để kiểm tra trạng thái
+  console.log('🧪 [CART][DEBUG] Testing product endpoints...')
   try {
-    const basicRes = await fetch(`http://localhost:8080/api/giohang/by-khachhang/${maKH}`, { headers })
-    console.log('📊 Basic cart status:', basicRes.status)
-    
-    if (basicRes.ok) {
-      const basicData = await basicRes.json()
-      console.log('✅ Basic cart data:', basicData)
-    } else {
-      const errorText = await basicRes.text()
-      console.error('❌ Basic cart error:', errorText)
-    }
-  } catch (error) {
-    console.error('❌ Basic cart exception:', error)
-  }
-  
-  // Test 2: With-items endpoint
-  console.log('🧪 Testing with-items endpoint...')
-  try {
-    const withItemsRes = await fetch(`http://localhost:8080/api/giohang/by-khachhang/${maKH}/with-items`, { headers })
-    console.log('📊 With-items status:', withItemsRes.status)
-    
-    if (withItemsRes.ok) {
-      const withItemsData = await withItemsRes.json()
-      console.log('✅ With-items data:', withItemsData)
-    } else {
-      const errorText = await withItemsRes.text()
-      console.error('❌ With-items error:', errorText)
+    const testProducts = ['SP001', 'SP002', 'SP003']
+    for (const productId of testProducts) {
+      const productRes = await fetch(`http://localhost:8080/api/sanpham/${productId}`)
+      console.log(`📊 [CART][DEBUG] Product ${productId} status:`, productRes.status)
       
-      // Nếu 404, có thể endpoint chưa được implement
-      if (withItemsRes.status === 404) {
-        console.error('💡 Suggestion: Check if backend has implemented /api/giohang/by-khachhang/{maKH}/with-items endpoint')
+      if (productRes.ok) {
+        const productData = await productRes.json()
+        console.log(`✅ [CART][DEBUG] Product ${productId} data:`, {
+          maSP: productData.maSP,
+          tenSP: productData.tenSP,
+          trangThai: productData.trangThai,
+          giaHienTai: productData.giaHienTai
+        })
+      } else {
+        const errorText = await productRes.text().catch(() => 'Unable to read')
+        console.error(`❌ [CART][DEBUG] Product ${productId} error:`, errorText)
       }
     }
   } catch (error) {
-    console.error('❌ With-items exception:', error)
+    console.error('❌ [CART][DEBUG] Product test failed:', error)
   }
   
-  // Test 3: Sync endpoint
-  console.log('🧪 Testing sync endpoint...')
-  try {
-    const syncRes = await fetch('http://localhost:8080/api/giohang/sync', {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        items: [
-          { maSP: 'TEST001', soLuong: 1 }
-        ]
-      })
-    })
-    
-    console.log('📊 Sync status:', syncRes.status)
-    
-    if (syncRes.ok) {
-      const syncData = await syncRes.json()
-      console.log('✅ Sync data:', syncData)
-    } else {
-      const errorText = await syncRes.text()
-      console.error('❌ Sync error:', errorText)
-    }
-  } catch (error) {
-    console.error('❌ Sync exception:', error)
-  }
+  console.log('🏁 [CART][DEBUG] Test completed!')
 }
 
-// Export function để có thể gọi từ console
-window.debugCartAPI = debugCartAPI
-
-console.log('✅ Debug functions loaded. Run: debugCartAPI()')
+// Chạy test
+debugCartAPI()

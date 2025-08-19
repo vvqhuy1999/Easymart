@@ -1613,31 +1613,24 @@ const handleOAuth2Callback = async () => {
 // Logout function - sử dụng API AUTH.LOGOUT mới
 const logout = async () => {
   try {
-    // 1) Persist local cart to backend (GioHang) before clearing auth
+    // 1) Giỏ hàng bây giờ lưu trong backend - KHÔNG CẦN xóa khi logout
+    // Chỉ clear local state, giữ giỏ hàng trong database
     try {
       const cartModule = await import('./useCart')
       if (cartModule && typeof cartModule.useCart === 'function') {
-        const { persistLocalToBackendAndClear, clearCart } = cartModule.useCart()
-        if (persistLocalToBackendAndClear) {
-          await persistLocalToBackendAndClear()
-        }
-        // Ensure reactive cart state is cleared immediately
-        if (clearCart) {
-          await clearCart()
-        }
-        // Notify UI listeners (optional)
-        try { window.dispatchEvent(new CustomEvent('cart-updated', { detail: { action: 'cleared' } })) } catch {}
+        // Chỉ clear local state, KHÔNG xóa giỏ hàng backend
+        cartModule.useCart().cart.value = []
+        console.log('[LOGOUT] Cart local state cleared, backend cart preserved')
       }
     } catch (e) {
-      console.warn('Persist cart on logout failed (non-blocking):', e?.message || e)
+      console.warn('Clear cart state on logout failed (non-blocking):', e?.message || e)
     }
 
-    // 1.1) Ensure localStorage cart-like keys are cleared
+    // 1.1) Clear localStorage keys (không có giỏ hàng nữa)
     try {
-      // Legacy cart key removed (cart is backend-only now)
-      try { localStorage.removeItem('easymart-cart') } catch {}
       localStorage.removeItem('easymart-selected-items')
       localStorage.removeItem('easymart-redirect-after-login')
+      // KHÔNG xóa easymart-cart vì không còn dùng
     } catch {}
 
     const token = getStorageItem('easymart-token')
