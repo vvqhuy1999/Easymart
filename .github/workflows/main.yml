@@ -1,0 +1,42 @@
+# Tên của quy trình làm việc
+name: Deploy Easymart
+
+# Cấu hình sự kiện kích hoạt quy trình
+on:
+  push:
+    branches:
+      - main # Chạy khi có push lên nhánh main
+
+# Các công việc (jobs) sẽ được thực thi
+jobs:
+  build-and-deploy:
+    # Sử dụng môi trường Ubuntu mới nhất
+    runs-on: ubuntu-latest
+
+    # Các bước thực thi công việc
+    steps:
+      # 1. Checkout mã nguồn từ repository
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2. Thiết lập môi trường Node.js
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18' # Hoặc phiên bản Node.js bạn đang dùng
+          cache: 'npm'
+
+      # 3. Cài đặt các dependencies của dự án
+      - name: Install dependencies
+        run: npm install
+
+      # 4. Xây dựng (build) dự án
+      - name: Build project
+        run: npm run build
+
+      # 5. Triển khai (deploy) lên GitHub Pages
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist # Thư mục chứa kết quả sau khi build
