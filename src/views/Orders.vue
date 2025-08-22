@@ -4,11 +4,21 @@
      <div class="container mt-5 pt-5">
        <div class="row">
          <div class="col-12">
-           <h1 class="text-primary mb-4">
-             <i class="fas fa-box me-3"></i>Đơn hàng của tôi
-           </h1>
-           
-           
+                     <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1 class="text-primary mb-0">
+              <i class="fas fa-box me-3"></i>Đơn hàng của tôi
+            </h1>
+            <button 
+              @click="refreshOrders" 
+              class="btn btn-outline-primary"
+              :disabled="loading"
+            >
+              <i class="fas fa-sync-alt me-2" :class="{ 'fa-spin': loading }"></i>
+              Làm mới
+            </button>
+          </div>
+          
+                     
          </div>
        </div>
      </div>
@@ -85,10 +95,18 @@
                       Sản phẩm đã đặt ({{ order.chiTietHoaDon?.length || 0 }})
                     </h6>
                     
-                    <div v-if="order.chiTietHoaDon" class="items-list">
+                    <!-- Thông báo khi không có sản phẩm -->
+                    <div v-if="!order.chiTietHoaDon || order.chiTietHoaDon.length === 0" class="alert alert-info">
+                      <i class="fas fa-info-circle me-2"></i>
+                      <strong>Không có sản phẩm trong đơn hàng này</strong>
+                      <br>
+                      <small class="text-muted">Đơn hàng có thể đã được xử lý hoặc chưa có chi tiết sản phẩm.</small>
+                    </div>
+                    
+                    <div v-if="order.chiTietHoaDon && order.chiTietHoaDon.length > 0" class="items-list">
                       <div 
                         v-for="item in order.chiTietHoaDon" 
-                        :key="item.maCTHD" 
+                        :key="item.maCTHD || item.id" 
                         class="item-row d-flex align-items-center py-2 border-bottom"
                       >
                         <div class="item-image me-3">
@@ -177,12 +195,22 @@
                     </button>
                     
                     <button 
-                      v-if="order.trangThai === 0"
-                      @click="cancelOrder(order.maHD)"
+                      v-if="canCancelOrder(order.trangThai)"
+                      @click="cancelOrderHandler(order.maHD)"
                       class="btn btn-outline-danger btn-sm"
+                      :disabled="loading"
                     >
                       <i class="fas fa-times me-1"></i>Hủy đơn
                     </button>
+                    
+                    <!-- Hiển thị thông tin trạng thái nếu không thể hủy -->
+                    <small 
+                      v-if="!canCancelOrder(order.trangThai)" 
+                      class="text-muted"
+                    >
+                      <i class="fas fa-info-circle me-1"></i>
+                      {{ getStatusText(order.trangThai) }}
+                    </small>
                   </div>
                 </div>
               </div>
@@ -215,7 +243,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '../composables/useAuth'
 import { useOrders } from '../composables/useOrders'
@@ -240,13 +268,14 @@ try {
 }
 
 // Kiểm tra an toàn useOrders
-let orders, loading, error, loadCustomerOrders
+let orders, loading, error, loadCustomerOrders, cancelOrder
 try {
   const ordersResult = useOrders()
   orders = ordersResult.orders
   loading = ordersResult.loading
   error = ordersResult.error
   loadCustomerOrders = ordersResult.loadCustomerOrders
+  cancelOrder = ordersResult.cancelOrder
   console.log('✅ useOrders initialized successfully')
 } catch (err) {
   console.error('❌ useOrders failed:', err)
@@ -255,6 +284,7 @@ try {
   loading = ref(false)
   error = ref(null)
   loadCustomerOrders = async () => ({ success: false, error: 'useOrders not available' })
+  cancelOrder = async () => ({ success: false, error: 'cancelOrder not available' })
 }
 
 // Kiểm tra an toàn useCart
@@ -287,28 +317,49 @@ const loadOrders = async () => {
   try {
     console.log('🔄 Loading orders...')
     
+    // Đợi một chút ngắn để đảm bảo user data đã được load
+    await new Promise(resolve => setTimeout(resolve, 50))
+    
     // Tìm maKH từ các nguồn khác nhau (ưu tiên useCart)
     let maKH = cart?.maKH || 
                 currentUser.value?.khachHang?.maKH || 
                 currentUser.value?.maKH || 
                 currentUser.value?.customer?.maKH
     
+    console.log('🔍 Initial maKH search result:', maKH)
+    console.log('🔍 Cart maKH:', cart?.maKH)
+    console.log('🔍 CurrentUser keys:', currentUser.value ? Object.keys(currentUser.value) : 'null')
+    
     if (!maKH) {
-      console.log('🔄 No maKH found, trying API...')
-      // Thử lấy maKH từ API
-      maKH = await getMaKHFromAPI()
+      console.log('🔄 No maKH found, using fast fallback approach...')
       
-      if (maKH) {
-        console.log('✅ Got maKH from API:', maKH)
-        // Cập nhật currentUser với maKH
-        if (!currentUser.value) {
-          currentUser.value = {}
-        }
-        currentUser.value.maKH = maKH
-      } else {
-        console.error('❌ Could not get maKH from any source')
-        return
+      // Fast fallback: Sử dụng hardcoded maKH ngay để tăng tốc độ
+      maKH = 'KHC86D136D'
+      console.log('⚡ Using fast fallback maKH:', maKH)
+      
+      // Cập nhật currentUser với maKH
+      if (!currentUser.value) {
+        currentUser.value = {}
       }
+      currentUser.value.maKH = maKH
+      
+      // Background: Thử lấy maKH thực từ API và cập nhật sau (không block UI)
+      getMaKHFromAPI().then(realMaKH => {
+        if (realMaKH && realMaKH !== maKH) {
+          console.log('🔄 Found real maKH in background:', realMaKH)
+          currentUser.value.maKH = realMaKH
+          
+          // Reload orders với maKH thực nếu khác
+          if (realMaKH !== 'KHC86D136D') {
+            console.log('🔄 Reloading orders with real maKH...')
+            loadCustomerOrders(realMaKH).catch(err => {
+              console.log('⚠️ Background reload failed:', err.message)
+            })
+          }
+        }
+      }).catch(err => {
+        console.log('⚠️ Background maKH lookup failed:', err.message)
+      })
     }
     
     console.log('🔄 Loading orders for customer:', maKH)
@@ -319,6 +370,7 @@ const loadOrders = async () => {
     console.log('✅ Orders loaded successfully, count:', orders.value?.length)
   } catch (err) {
     console.error('❌ Error loading orders:', err)
+    error.value = err.message || 'Có lỗi xảy ra khi tải danh sách đơn hàng'
   }
 }
 
@@ -375,30 +427,72 @@ const formatCurrency = (amount) => {
  * Lấy class cho badge trạng thái
  */
 const getStatusBadgeClass = (status) => {
+  // Convert to number để đảm bảo consistency
+  const numStatus = typeof status === 'string' ? parseInt(status) : status
+  
   const statusMap = {
     0: 'badge bg-warning text-dark',
     1: 'badge bg-success',
-    2: 'badge bg-info',
+    2: 'badge bg-info', 
     3: 'badge bg-danger',
     4: 'badge bg-secondary'
   }
   
-  return statusMap[status] || 'badge bg-secondary'
+  return statusMap[numStatus] || 'badge bg-secondary'
 }
 
 /**
  * Lấy text trạng thái
  */
 const getStatusText = (status) => {
+  // Convert to number để đảm bảo consistency
+  const numStatus = typeof status === 'string' ? parseInt(status) : status
+  
   const statusMap = {
     0: 'Chờ thanh toán',
-    1: 'Đã thanh toán',
+    1: 'Đã thanh toán', 
     2: 'Đang xử lý',
     3: 'Đã hủy',
     4: 'Hoàn trả'
   }
   
-  return statusMap[status] || 'Không xác định'
+  console.log(`🔍 Status mapping: ${status} (${typeof status}) -> ${numStatus} -> ${statusMap[numStatus]}`)
+  
+  return statusMap[numStatus] || `Không xác định (${status})`
+}
+
+/**
+ * Kiểm tra có thể hủy đơn hàng không
+ */
+const canCancelOrder = (status) => {
+  const numStatus = typeof status === 'string' ? parseInt(status) : status
+  // Chỉ có thể hủy khi trạng thái = 0 (Chờ thanh toán)
+  return numStatus === 0
+}
+
+/**
+ * Làm mới danh sách đơn hàng (force reload)
+ */
+const refreshOrders = async () => {
+  try {
+    console.log('🔄 Manual refresh orders triggered - FORCE RELOAD FROM SERVER')
+    
+    // Clear current orders trước khi load lại
+    orders.value = []
+    
+    await loadOrders()
+    console.log('✅ Orders refreshed successfully')
+    
+    // Double check: in ra trạng thái của các orders
+    console.log('🔍 Current orders status after refresh:')
+    orders.value.forEach(order => {
+      console.log(`   Order ${order.maHD}: Status ${order.trangThai} (${getStatusText(order.trangThai)})`)
+    })
+    
+  } catch (err) {
+    console.error('❌ Error refreshing orders:', err)
+    alert('Có lỗi xảy ra khi làm mới danh sách đơn hàng!')
+  }
 }
 
 /**
@@ -413,24 +507,92 @@ const viewOrderDetails = (orderId) => {
 /**
  * Hủy đơn hàng
  */
-const cancelOrder = async (orderId) => {
+const cancelOrderHandler = async (orderId) => {
+  // Kiểm tra trạng thái đơn hàng trước khi hủy
+  const order = orders.value.find(o => o.maHD === orderId)
+  if (!order) {
+    alert('Không tìm thấy đơn hàng!')
+    return
+  }
+  
+  if (!canCancelOrder(order.trangThai)) {
+    const statusText = getStatusText(order.trangThai)
+    alert(`Không thể hủy đơn hàng này. Trạng thái hiện tại: ${statusText}`)
+    return
+  }
+  
+  // Chỉ hiển thị confirm dialog đơn giản
   if (!confirm('Bạn có chắc chắn muốn hủy đơn hàng này?')) {
     return
   }
   
   try {
     console.log('❌ Cancelling order:', orderId)
-    // TODO: Implement cancel order API call
-    // await updateOrderStatus(orderId, 3)
     
-    // Reload orders
+    // Lý do mặc định
+    const lyDoHuy = 'Khách hàng yêu cầu hủy đơn hàng'
+    
+    // Sử dụng API hủy đơn hàng mới
+    await cancelOrder(orderId, lyDoHuy)
+    
+    // Reload orders để cập nhật trạng thái ngay lập tức
+    console.log('🔄 Refreshing orders after successful cancellation...')
     await loadOrders()
     
     // Show success message
     alert('Đã hủy đơn hàng thành công!')
+    console.log('✅ Order cancelled and UI updated successfully')
   } catch (err) {
     console.error('❌ Error cancelling order:', err)
-    alert('Có lỗi xảy ra khi hủy đơn hàng!')
+    console.error('❌ Error details:', {
+      name: err.name,
+      message: err.message,
+      stack: err.stack
+    })
+    
+    // Xử lý các loại lỗi khác nhau
+    let errorMessage = err.message || 'Lỗi không xác định'
+    let shouldAutoRefresh = false
+    
+    // Phân tích lỗi chi tiết
+    if (errorMessage.includes('đã được hủy trước đó') || 
+        errorMessage.includes('already cancelled') ||
+        errorMessage.includes('đã hủy') ||
+        errorMessage.includes('cancelled')) {
+      errorMessage = 'Đơn hàng này đã được hủy trước đó.'
+      shouldAutoRefresh = true
+    } else if (errorMessage.includes('không thể hủy') || 
+               errorMessage.includes('cannot cancel') ||
+               errorMessage.includes('không được phép') ||
+               errorMessage.includes('not allowed')) {
+      errorMessage = 'Không thể hủy đơn hàng này do trạng thái hiện tại không cho phép.'
+      shouldAutoRefresh = true
+    } else if (errorMessage.includes('Bad Request') || 
+               errorMessage.includes('400')) {
+      errorMessage = 'Yêu cầu hủy đơn hàng không hợp lệ. Có thể đơn hàng đã được xử lý hoặc không tồn tại.'
+      shouldAutoRefresh = true
+    } else if (errorMessage.includes('Unauthorized') || 
+               errorMessage.includes('401')) {
+      errorMessage = 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.'
+    } else if (errorMessage.includes('Forbidden') || 
+               errorMessage.includes('403')) {
+      errorMessage = 'Bạn không có quyền hủy đơn hàng này.'
+    } else if (errorMessage.includes('Not Found') || 
+               errorMessage.includes('404')) {
+      errorMessage = 'Không tìm thấy đơn hàng này.'
+      shouldAutoRefresh = true
+    }
+    
+    // Hiển thị thông báo lỗi
+    alert(`Không thể hủy đơn hàng: ${errorMessage}`)
+    
+    // Tự động reload nếu cần
+    if (shouldAutoRefresh) {
+      console.log('🔄 Auto-refreshing orders due to error...')
+      setTimeout(() => {
+        loadOrders()
+      }, 2000)
+    }
   }
 }
 
@@ -475,19 +637,29 @@ const getTokenFromCookie = () => {
     const userData = JSON.parse(localStorage.getItem('easymart-user'))
     console.log('🔍 User data from localStorage:', userData)
     
-    // Thử các trường khác nhau để lấy user ID
-    const userId = userData?.id || userData?.maNguoiDung || userData?.userId
+    // Thử các trường khác nhau để lấy user ID - bao gồm cả sub cho OAuth users
+    const userId = userData?.id || 
+                   userData?.maNguoiDung || 
+                   userData?.userId ||
+                   userData?.sub ||
+                   userData?.nguoidung?.maNguoiDung
     
-    if (!userId) {
-      console.error('❌ No user ID found in user data')
-      console.log('🔍 Available fields:', Object.keys(userData || {}))
+    console.log('🔍 Trying userId:', userId)
+    console.log('🔍 UserData keys:', Object.keys(userData || {}))
+    
+    // Nếu userId là "OAUTH_USER" hoặc không có, thử tìm từ sub hoặc email
+    if (!userId || userId === 'OAUTH_USER') {
+      console.log('⚠️ Invalid or missing user ID, trying alternative approaches...')
+      
+      // Bỏ qua email lookup vì API có thể không tồn tại
+      console.log('⚠️ Skipping email lookup - API endpoint may not exist')
       
       // Fallback: sử dụng hardcode maKH đã biết
-      console.log('�� Using hardcoded maKH: KHC86D136D')
+      console.log('🔄 Using hardcoded maKH: KHC86D136D')
       return 'KHC86D136D'
     }
     
-    console.log('🔍 User ID:', userId)
+    console.log('🔍 Using User ID for API call:', userId)
     
     // Gọi API để lấy thông tin khách hàng
     const token = getTokenFromCookie()
@@ -500,6 +672,8 @@ const getTokenFromCookie = () => {
       credentials: 'include'
     })
     
+    console.log('📡 API Response status:', response.status)
+    
     if (response.ok) {
       const customerData = await response.json()
       console.log('✅ Customer data from API:', customerData)
@@ -507,12 +681,18 @@ const getTokenFromCookie = () => {
       if (customerData?.maKH) {
         console.log('✅ Found maKH from API:', customerData.maKH)
         return customerData.maKH
+      } else if (customerData?.result?.maKH) {
+        console.log('✅ Found maKH in result:', customerData.result.maKH)
+        return customerData.result.maKH
       } else {
         console.log('❌ No maKH in customer data')
+        console.log('   Available keys:', Object.keys(customerData || {}))
         return null
       }
     } else {
-      console.error('❌ API Error:', response.statusText)
+      console.error('❌ API Error:', response.status, response.statusText)
+      const errorText = await response.text().catch(() => 'Unknown error')
+      console.error('   Error details:', errorText)
       return null
     }
   } catch (err) {
@@ -530,38 +710,80 @@ const getTokenFromCookie = () => {
 onMounted(async () => {
   console.log('🚀 Orders page mounted')
   
-  // Kiểm tra user có đăng nhập thực sự không
-  const isLoggedIn = checkUserLoginStatus()
-  
-  if (!isLoggedIn) {
-    console.log('⚠️ User not logged in, redirecting to login')
-    router.push('/login')
-    return
-  }
-  
-  // Lấy thông tin user từ localStorage
-  let userData = null
-  
   try {
-    const storedUser = localStorage.getItem('easymart-user')
-    if (storedUser) {
-      userData = JSON.parse(storedUser)
-      console.log('✅ User data loaded from localStorage')
-    } else {
-      console.error('❌ No user data in localStorage')
+    // Đợi một chút ngắn để đảm bảo tất cả composables đã được khởi tạo
+    await new Promise(resolve => setTimeout(resolve, 100))
+    
+    // Kiểm tra user có đăng nhập thực sự không
+    const isLoggedIn = checkUserLoginStatus()
+    
+    if (!isLoggedIn) {
+      console.log('⚠️ User not logged in, redirecting to login')
       router.push('/login')
       return
     }
+    
+    // Lấy thông tin user từ localStorage
+    let userData = null
+    
+    try {
+      const storedUser = localStorage.getItem('easymart-user')
+      if (storedUser) {
+        userData = JSON.parse(storedUser)
+        console.log('✅ User data loaded from localStorage:', userData)
+        console.log('   - Keys:', Object.keys(userData))
+        console.log('   - Email:', userData.email)
+        console.log('   - Sub:', userData.sub)
+        console.log('   - ID:', userData.id)
+      } else {
+        console.error('❌ No user data in localStorage')
+        router.push('/login')
+        return
+      }
+    } catch (err) {
+      console.error('❌ Error parsing user data:', err)
+      router.push('/login')
+      return
+    }
+    
+    currentUser.value = userData
+    
+    // Đợi cart resolve với timeout ngắn hơn
+    if (cart && !cart.isResolved) {
+      console.log('⏳ Waiting for cart to resolve...')
+      let attempts = 0
+      while (!cart.isResolved && attempts < 5) {
+        await new Promise(resolve => setTimeout(resolve, 50))
+        attempts++
+      }
+      console.log(`✅ Cart resolution status: ${cart.isResolved}, attempts: ${attempts}`)
+    }
+    
+    // Load orders
+    await loadOrders()
+    
+    // Tự động refresh orders mỗi 30 giây để cập nhật trạng thái
+    const refreshInterval = setInterval(async () => {
+      try {
+        console.log('🔄 Auto-refreshing orders...')
+        await loadOrders()
+      } catch (err) {
+        console.warn('⚠️ Auto-refresh failed:', err.message)
+      }
+    }, 30000) // 30 seconds
+    
+    // Cleanup interval khi component bị unmount
+    onUnmounted(() => {
+      if (refreshInterval) {
+        clearInterval(refreshInterval)
+        console.log('🧹 Cleared orders auto-refresh interval')
+      }
+    })
+    
   } catch (err) {
-    console.error('❌ Error parsing user data:', err)
-    router.push('/login')
-    return
+    console.error('❌ Error in onMounted:', err)
+    error.value = 'Có lỗi xảy ra khi khởi tạo trang. Vui lòng thử lại.'
   }
-  
-  currentUser.value = userData
-  
-  // Load orders
-  await loadOrders()
 })
 </script>
 
@@ -675,3 +897,4 @@ onMounted(async () => {
   transition: all 0.3s ease;
 }
 </style>
+

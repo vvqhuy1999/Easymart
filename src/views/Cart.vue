@@ -488,8 +488,17 @@ const checkout = async () => {
       // Lưu danh sách item đã chọn để Checkout.vue hiển thị
       localStorage.setItem('easymart-selected-items', JSON.stringify(selectedCartItemIds))
       
-      // Xóa các item đã chọn khỏi giỏ hàng (sẽ được backend xử lý)
-      console.log('🗑️ Items đã được chuyển sang hóa đơn, backend sẽ xóa khỏi giỏ hàng')
+      // 🧹 Clear cart items sau khi tạo hóa đơn thành công
+      console.log('🗑️ Items đã được chuyển sang hóa đơn, clearing cart...')
+      
+      try {
+        // Backend đã xử lý chuyển items từ giỏ hàng sang hóa đơn
+        // Bây giờ reload giỏ hàng để cập nhật UI
+        await reloadCartFromBackend()
+        console.log('✅ Cart reloaded after order creation')
+      } catch (reloadError) {
+        console.warn('⚠️ Failed to reload cart after order creation:', reloadError)
+      }
       
       setTimeout(() => {
         // Chuyển đến trang thanh toán

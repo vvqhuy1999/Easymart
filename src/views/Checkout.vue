@@ -956,18 +956,21 @@ const processOrder = async () => {
     orders.push(order)
     localStorage.setItem('easymart-orders', JSON.stringify(orders))
     
-    // Remove ordered items from cart
-    selectedItems.value.forEach(item => {
-      const cartIndex = cart.value.findIndex(cartItem => cartItem.productId === item.productId)
-      if (cartIndex !== -1) {
-        cart.value.splice(cartIndex, 1)
-      }
-    })
+    // 🧹 Clear cart after successful order creation
+    console.log('🧹 Clearing cart after successful checkout...')
     
-    // Cart is managed by backend only; no localStorage persistence
+    try {
+      // Clear backend cart using useCart composable
+      await clearCart()
+      console.log('✅ Backend cart cleared successfully')
+    } catch (clearError) {
+      console.warn('⚠️ Failed to clear backend cart:', clearError)
+      // Không block checkout flow nếu clear cart fail
+    }
     
     // Clear selected items from localStorage
     localStorage.removeItem('easymart-selected-items')
+    console.log('🧹 localStorage cleared')
     
     // Handle different payment methods
     handlePaymentRedirect(order)

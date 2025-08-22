@@ -152,14 +152,61 @@ export const API_ENDPOINTS = {
 
   // HoaDon (Hóa đơn) - API endpoints cho thanh toán (thay thế DonHang)
   HOADON: {
-    // Tạo hóa đơn từ giỏ hàng
-    CREATE_FROM_CART: '/api/hoadon/from-cart',
-    // Lấy hóa đơn theo khách hàng
-    BY_CUSTOMER: (maKH) => `/api/hoadon/by-khachhang/${maKH}`,
-    // Lấy hóa đơn theo ID
+    // 📋 APIs cơ bản (CRUD operations)
+    LIST: '/api/hoadon',
     BY_ID: (maHD) => `/api/hoadon/${maHD}`,
-    // Cập nhật trạng thái hóa đơn
-    UPDATE_STATUS: (maHD) => `/api/hoadon/${maHD}/trangthai`
+    CREATE: '/api/hoadon',
+    UPDATE: (maHD) => `/api/hoadon/${maHD}`,
+    DELETE: (maHD) => `/api/hoadon/${maHD}`,
+    
+    // 🛒 APIs từ giỏ hàng (checkout flow)
+    CREATE_FROM_CART: '/api/hoadon/from-cart',
+    BY_CUSTOMER: (maKH) => `/api/hoadon/by-khachhang/${maKH}`,
+    UPDATE_STATUS: (maHD) => `/api/hoadon/${maHD}/trangthai`,
+    
+    // 🆕 APIs chi tiết đầy đủ (full details) - RECOMMENDED
+    BY_ID_FULL: (maHD) => `/api/hoadon/${maHD}/full-details`,
+    BY_CUSTOMER_FULL: (maKH) => `/api/hoadon/by-khachhang/${maKH}/full-details`,
+    
+    // 📊 APIs đếm (counting)
+    COUNT_BY_STATUS: (status) => `/api/hoadon/count/trangthai/${status}`,
+    COUNT_BY_CUSTOMER: (maKH) => `/api/hoadon/count/khachhang/${maKH}`,
+    
+    // 🔍 APIs tìm kiếm và lọc (filtering & searching)
+    BY_STATUS: (status) => `/api/hoadon/status/${status}`,
+    BY_CUSTOMER_AND_STATUS: (maKH, status) => `/api/hoadon/by-khachhang/${maKH}/status/${status}`,
+    BY_DATE_RANGE: '/api/hoadon/date-range', // ?fromDate=2024-01-01&toDate=2024-12-31
+    BY_CUSTOMER_AND_DATE: (maKH) => `/api/hoadon/by-khachhang/${maKH}/date-range`,
+    SEARCH: '/api/hoadon/search', // ?query=keyword&page=1&size=10
+    
+    // ❌ APIs hủy đơn hàng (cancellation)
+    CANCEL: (maHD) => `/api/hoadon/${maHD}/cancel`, // PATCH với ?lyDoHuy=...
+    
+    // 📈 APIs thống kê (statistics)
+    STATISTICS: (maKH) => `/api/hoadon/by-khachhang/${maKH}/statistics`,
+    COUNT_BY_STATUS_CUSTOMER: (maKH) => `/api/hoadon/by-khachhang/${maKH}/count-by-status`
+  },
+
+  // Chi tiết hóa đơn
+  CHITIETHOADON: {
+    // 🆕 API mới - Lấy chi tiết theo mã hóa đơn (RECOMMENDED)
+    BY_HOADON: (maHD) => `/api/chitiethoadon/hoadon/${maHD}`,
+    // Cập nhật chi tiết hóa đơn
+    UPDATE: (maCTHD) => `/api/chitiethoadon/${maCTHD}`,
+    // API cũ (deprecated) - giữ lại cho backward compatibility
+    BY_HOADON_OLD: (maHD) => `/api/chitiethoadon/${maHD}`
+  },
+
+  // Khách hàng
+  KHACHHANG: {
+    // Lấy thông tin khách hàng theo mã
+    BY_ID: (maKH) => `/api/khachhang/${maKH}`,
+    // Lấy khách hàng theo người dùng
+    BY_NGUOIDUNG: (maNguoiDung) => `/api/khachhang/by-nguoidung/${maNguoiDung}`,
+    // Cập nhật thông tin khách hàng
+    UPDATE_INFO: (maKH) => `/api/khachhang/${maKH}`,
+    // Đăng ký khách hàng mới
+    REGISTER: '/api/khachhang/register'
   },
   
   // Images
@@ -192,3 +239,44 @@ export default {
   baseURL: API_BASE_URL,
   endpoints: API_ENDPOINTS
 }
+
+// 📚 API Usage Examples - Ví dụ sử dụng các API mới
+/*
+🔍 1. Lọc hóa đơn theo trạng thái:
+// Lấy tất cả hóa đơn đã thanh toán
+GET /api/hoadon/status/1
+
+// Lấy hóa đơn chờ thanh toán của khách hàng KH001
+GET /api/hoadon/by-khachhang/KH001/status/0
+
+📅 2. Lọc hóa đơn theo ngày:
+// Lấy hóa đơn trong tháng 1/2024
+GET /api/hoadon/date-range?fromDate=2024-01-01&toDate=2024-01-31
+
+// Lấy hóa đơn của khách hàng trong khoảng thời gian
+GET /api/hoadon/by-khachhang/KH001/date-range?fromDate=2024-01-01&toDate=2024-12-31
+
+❌ 3. Hủy hóa đơn:
+// Hủy hóa đơn với lý do
+PATCH /api/hoadon/123/cancel?lyDoHuy=Khách hàng không muốn mua nữa
+
+📈 4. Thống kê hóa đơn:
+// Lấy thống kê tổng quan của khách hàng
+GET /api/hoadon/by-khachhang/KH001/statistics
+Response: { totalInvoices: 15, totalAmount: 2500000, totalDiscount: 250000, totalPoints: 2500 }
+
+// Lấy số lượng hóa đơn theo từng trạng thái
+GET /api/hoadon/by-khachhang/KH001/count-by-status
+Response: { pending: 2, paid: 10, processing: 1, cancelled: 2, returned: 0 }
+
+🔍 5. Tìm kiếm hóa đơn:
+// Tìm kiếm hóa đơn theo từ khóa
+GET /api/hoadon/search?query=HD001&page=1&size=10
+
+📊 6. Đếm hóa đơn:
+// Đếm tất cả hóa đơn đã thanh toán
+GET /api/hoadon/count/trangthai/1
+
+// Đếm tổng hóa đơn của khách hàng
+GET /api/hoadon/count/khachhang/KH001
+*/

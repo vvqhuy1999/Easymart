@@ -160,7 +160,7 @@ export class OrderService {
   }
 
   /**
-   * Lấy danh sách hóa đơn của khách hàng
+   * Lấy danh sách hóa đơn của khách hàng (cơ bản)
    * GET /api/hoadon/by-khachhang/{maKH}
    * @param {string} maKH - Mã khách hàng
    * @returns {Promise<Array>} - Danh sách hóa đơn
@@ -172,10 +172,17 @@ export class OrderService {
         throw new Error('Không có token xác thực. Vui lòng đăng nhập lại.')
       }
 
-      const response = await fetch(`${API_CONFIG.BASE_URL}${API_ENDPOINTS.HOADON.BY_CUSTOMER(maKH)}`, {
+      // Thêm timestamp để tránh cache
+      const timestamp = new Date().getTime()
+      const url = `${API_CONFIG.BASE_URL}${API_ENDPOINTS.HOADON.BY_CUSTOMER(maKH)}?_t=${timestamp}`
+      
+      const response = await fetch(url, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
         }
       })
 
@@ -186,6 +193,64 @@ export class OrderService {
       return await response.json()
     } catch (error) {
       console.error(`Error getting invoices for customer ${maKH}:`, error)
+      throw error
+    }
+  }
+
+  /**
+   * 🆕 Lấy danh sách hóa đơn của khách hàng với chi tiết đầy đủ (RECOMMENDED)
+   * GET /api/hoadon/by-khachhang/{maKH}/full-details
+   * @param {string} maKH - Mã khách hàng
+   * @returns {Promise<Array>} - Danh sách hóa đơn với chi tiết đầy đủ
+   */
+  static async getOrdersByCustomerFullDetails(maKH) {
+    try {
+      console.log('🚀 Getting orders with full details for customer:', maKH)
+      
+      const token = getToken()
+      if (!token) {
+        throw new Error('Không có token xác thực. Vui lòng đăng nhập lại.')
+      }
+
+      // Thêm timestamp để tránh cache
+      const timestamp = new Date().getTime()
+      const url = `${API_CONFIG.BASE_URL}${API_ENDPOINTS.HOADON.BY_CUSTOMER_FULL(maKH)}?_t=${timestamp}`
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        }
+      })
+
+      console.log('📡 Full details API response status:', response.status)
+
+      if (!response.ok) {
+        throw new Error(`Lấy hóa đơn chi tiết thất bại: ${response.statusText}`)
+      }
+
+      const result = await response.json()
+      console.log('✅ Orders with full details received:', result)
+      console.log('🔍 Result structure:')
+      console.log('   - success:', result.success)
+      console.log('   - result is array:', Array.isArray(result.result))
+      console.log('   - result length:', result.result?.length)
+      
+      if (result.result && Array.isArray(result.result) && result.result.length > 0) {
+        const firstOrder = result.result[0]
+        console.log('📦 First order structure:')
+        console.log('   - Keys:', Object.keys(firstOrder))
+        console.log('   - Has chiTietHoaDon:', !!firstOrder.chiTietHoaDon)
+        console.log('   - ChiTietHoaDon length:', firstOrder.chiTietHoaDon?.length)
+      }
+
+      return result
+    } catch (error) {
+      console.error(`Error getting full details for customer ${maKH}:`, error)
       throw error
     }
   }
@@ -222,8 +287,8 @@ export class OrderService {
   }
 
   /**
-   * Lấy chi tiết hóa đơn theo mã hóa đơn
-   * GET /api/chitiethoadon/{maHD}
+   * 🆕 Lấy chi tiết hóa đơn theo mã hóa đơn (sử dụng API mới)
+   * GET /api/chitiethoadon/hoadon/{maHD}
    * @param {string} maHD - Mã hóa đơn
    * @returns {Promise<Object>} - Chi tiết hóa đơn với thông tin sản phẩm
    */
@@ -236,7 +301,8 @@ export class OrderService {
         throw new Error('Không có token xác thực. Vui lòng đăng nhập lại.')
       }
 
-      const response = await fetch(`${API_CONFIG.BASE_URL}/api/chitiethoadon/${maHD}`, {
+      // Sử dụng API endpoint mới
+      let response = await fetch(`${API_CONFIG.BASE_URL}${API_ENDPOINTS.CHITIETHOADON.BY_HOADON(maHD)}`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -246,12 +312,73 @@ export class OrderService {
 
       console.log('📡 Order details API response status:', response.status)
 
+      // Nếu API mới không hoạt động, thử fallback
       if (!response.ok) {
-        throw new Error(`Lấy chi tiết hóa đơn thất bại: ${response.statusText}`)
+        console.log('⚠️ New API failed, trying fallback methods...')
+        
+        // Fallback 1: Thử API hóa đơn với full details
+        try {
+          response = await fetch(`${API_CONFIG.BASE_URL}${API_ENDPOINTS.HOADON.BY_ID_FULL(maHD)}`, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          })
+          
+          console.log('📡 Full details fallback API response status:', response.status)
+          
+          if (response.ok) {
+            const invoiceResult = await response.json()
+            console.log('✅ Full invoice data received:', invoiceResult)
+            
+            if (invoiceResult && invoiceResult.success && invoiceResult.result) {
+              const invoice = invoiceResult.result
+              if (invoice.chiTietHoaDon && Array.isArray(invoice.chiTietHoaDon)) {
+                console.log(`📦 Found ${invoice.chiTietHoaDon.length} items in full invoice`)
+                return {
+                  success: true,
+                  result: invoice.chiTietHoaDon,
+                  message: 'Chi tiết từ hóa đơn full details'
+                }
+              }
+            }
+          }
+        } catch (fallbackError) {
+          console.warn('⚠️ Fallback API also failed:', fallbackError.message)
+        }
+        
+        // Fallback 2: API cũ
+        try {
+          response = await fetch(`${API_CONFIG.BASE_URL}${API_ENDPOINTS.CHITIETHOADON.BY_HOADON_OLD(maHD)}`, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          })
+          
+          console.log('📡 Old API fallback response status:', response.status)
+          
+          if (!response.ok) {
+            throw new Error(`Tất cả API endpoints đều thất bại: ${response.statusText}`)
+          }
+        } catch (oldApiError) {
+          throw new Error(`Không thể lấy chi tiết hóa đơn: ${oldApiError.message}`)
+        }
       }
 
       const result = await response.json()
       console.log('✅ Order details received:', result)
+      console.log('🔍 Result structure:')
+      console.log('   - success:', result.success)
+      console.log('   - result:', result.result)
+      console.log('   - result is array:', Array.isArray(result.result))
+      console.log('   - result length:', result.result?.length)
+      
+      if (result.result && Array.isArray(result.result) && result.result.length > 0) {
+        console.log('📦 First item in result:', result.result[0])
+      }
       
       return result
     } catch (error) {
@@ -288,6 +415,201 @@ export class OrderService {
       return await response.json()
     } catch (error) {
       console.error(`Error updating invoice ${orderId} status:`, error)
+      throw error
+    }
+  }
+
+  /**
+   * Hủy hóa đơn với lý do
+   * PATCH /api/hoadon/{maHD}/cancel
+   * @param {string} orderId - ID hóa đơn
+   * @param {string} lyDoHuy - Lý do hủy (tuỳ chọn)
+   * @returns {Promise<Object>} - Kết quả hủy đơn
+   */
+  static async cancelOrder(orderId, lyDoHuy = 'Khách hàng yêu cầu hủy') {
+    try {
+      console.log('❌ Cancelling order:', orderId, 'with reason:', lyDoHuy)
+      
+      const token = getToken()
+      if (!token) {
+        throw new Error('Không có token xác thực. Vui lòng đăng nhập lại.')
+      }
+
+      const url = `${API_CONFIG.BASE_URL}${API_ENDPOINTS.HOADON.CANCEL(orderId)}?lyDoHuy=${encodeURIComponent(lyDoHuy)}`
+      console.log('🌐 Cancel API URL:', url)
+
+      const response = await fetch(url, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      console.log('📡 Cancel API response status:', response.status)
+
+      if (!response.ok) {
+        let errorMessage = response.statusText || 'Unknown error'
+        
+        try {
+          const errorData = await response.json()
+          console.log('📋 Error response data:', errorData)
+          
+          // Thử nhiều cách để lấy error message
+          if (errorData?.message) {
+            errorMessage = errorData.message
+          } else if (errorData?.error) {
+            errorMessage = errorData.error
+          } else if (errorData?.details) {
+            errorMessage = errorData.details
+          } else if (typeof errorData === 'string') {
+            errorMessage = errorData
+          } else {
+            errorMessage = JSON.stringify(errorData)
+          }
+        } catch (parseError) {
+          console.warn('⚠️ Could not parse error response as JSON:', parseError)
+          
+          // Thử lấy response text thay vì JSON
+          try {
+            const errorText = await response.text()
+            console.log('📋 Error response text:', errorText)
+            if (errorText) {
+              errorMessage = errorText
+            }
+          } catch (textError) {
+            console.warn('⚠️ Could not get error response text:', textError)
+          }
+        }
+        
+        console.log('❌ Final error message:', errorMessage)
+        throw new Error(`Hủy hóa đơn thất bại: ${errorMessage}`)
+      }
+
+      const result = await response.json()
+      console.log('✅ Order cancelled successfully:', result)
+      
+      return result
+    } catch (error) {
+      console.error(`Error cancelling invoice ${orderId}:`, error)
+      throw error
+    }
+  }
+
+  /**
+   * Lấy thống kê hóa đơn của khách hàng
+   * GET /api/hoadon/by-khachhang/{maKH}/statistics
+   * @param {string} maKH - Mã khách hàng
+   * @returns {Promise<Object>} - Thống kê hóa đơn
+   */
+  static async getCustomerStatistics(maKH) {
+    try {
+      console.log('📈 Getting customer statistics for:', maKH)
+      
+      const token = getToken()
+      if (!token) {
+        throw new Error('Không có token xác thực. Vui lòng đăng nhập lại.')
+      }
+
+      const response = await fetch(`${API_CONFIG.BASE_URL}${API_ENDPOINTS.HOADON.STATISTICS(maKH)}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      console.log('📡 Statistics API response status:', response.status)
+
+      if (!response.ok) {
+        throw new Error(`Lấy thống kê thất bại: ${response.statusText}`)
+      }
+
+      const result = await response.json()
+      console.log('✅ Customer statistics received:', result)
+      
+      return result
+    } catch (error) {
+      console.error(`Error getting customer statistics for ${maKH}:`, error)
+      throw error
+    }
+  }
+
+  /**
+   * Lấy số lượng hóa đơn theo trạng thái của khách hàng
+   * GET /api/hoadon/by-khachhang/{maKH}/count-by-status
+   * @param {string} maKH - Mã khách hàng
+   * @returns {Promise<Object>} - Số lượng theo từng trạng thái
+   */
+  static async getCustomerStatusCounts(maKH) {
+    try {
+      console.log('📊 Getting status counts for customer:', maKH)
+      
+      const token = getToken()
+      if (!token) {
+        throw new Error('Không có token xác thực. Vui lòng đăng nhập lại.')
+      }
+
+      const response = await fetch(`${API_CONFIG.BASE_URL}${API_ENDPOINTS.HOADON.COUNT_BY_STATUS_CUSTOMER(maKH)}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      console.log('📡 Status counts API response status:', response.status)
+
+      if (!response.ok) {
+        throw new Error(`Lấy thống kê trạng thái thất bại: ${response.statusText}`)
+      }
+
+      const result = await response.json()
+      console.log('✅ Status counts received:', result)
+      
+      return result
+    } catch (error) {
+      console.error(`Error getting status counts for ${maKH}:`, error)
+      throw error
+    }
+  }
+
+  /**
+   * Lấy hóa đơn theo trạng thái của khách hàng
+   * GET /api/hoadon/by-khachhang/{maKH}/status/{status}
+   * @param {string} maKH - Mã khách hàng
+   * @param {number} status - Trạng thái hóa đơn (0: chờ, 1: đã thanh toán, 2: đang xử lý, 3: đã hủy, 4: hoàn trả)
+   * @returns {Promise<Array>} - Danh sách hóa đơn theo trạng thái
+   */
+  static async getOrdersByCustomerAndStatus(maKH, status) {
+    try {
+      console.log('🔍 Getting orders by customer and status:', maKH, status)
+      
+      const token = getToken()
+      if (!token) {
+        throw new Error('Không có token xác thực. Vui lòng đăng nhập lại.')
+      }
+
+      const response = await fetch(`${API_CONFIG.BASE_URL}${API_ENDPOINTS.HOADON.BY_CUSTOMER_AND_STATUS(maKH, status)}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      console.log('📡 Orders by status API response status:', response.status)
+
+      if (!response.ok) {
+        throw new Error(`Lấy hóa đơn theo trạng thái thất bại: ${response.statusText}`)
+      }
+
+      const result = await response.json()
+      console.log('✅ Orders by status received:', result)
+      
+      return result
+    } catch (error) {
+      console.error(`Error getting orders by customer ${maKH} and status ${status}:`, error)
       throw error
     }
   }
