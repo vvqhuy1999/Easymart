@@ -19,6 +19,9 @@ import { startTokenAutoRefresh, isTokenValid } from './utils/apiClient'
 // Import auth utilities
 import { useAuth } from './composables/useAuth'
 
+// Import localStorage manager
+import './utils/localStorageManager'
+
 // Create app
 const app = createApp(App)
 

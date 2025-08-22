@@ -9,10 +9,15 @@
               <i class="fas fa-home"></i> Trang chủ
             </router-link>
           </li>
-          <li class="breadcrumb-item">
+          <li class="breadcrumb-item" v-if="!isSingleProductCheckout">
             <router-link to="/cart" class="text-decoration-none">
               <i class="fas fa-shopping-cart"></i> Giỏ hàng
             </router-link>
+          </li>
+          <li class="breadcrumb-item" v-if="isSingleProductCheckout">
+            <span class="text-muted">
+              <i class="fas fa-bolt"></i> Mua ngay
+            </span>
           </li>
           <li class="breadcrumb-item active" aria-current="page">
             <i class="fas fa-credit-card"></i> Thanh toán
@@ -20,10 +25,23 @@
         </ol>
       </nav>
 
-      <h2 class="mb-4">
-        <i class="fas fa-credit-card text-primary me-2"></i>
-        Thanh toán đơn hàng
-      </h2>
+      <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="mb-0">
+          <i class="fas fa-credit-card text-primary me-2"></i>
+          {{ isSingleProductCheckout ? 'Thanh toán mua ngay' : 'Thanh toán đơn hàng' }}
+        </h2>
+        
+        <!-- Debug buttons -->
+        <div class="d-flex gap-2">
+          <button 
+            @click="debugLocalStorageData" 
+            class="btn btn-outline-warning btn-sm"
+            title="Debug localStorage data"
+          >
+            <i class="fas fa-bug me-1"></i>Debug Data
+          </button>
+        </div>
+      </div>
 
       <!-- Checkout Content -->
       <div v-if="selectedItems.length > 0" class="row">
@@ -109,7 +127,7 @@
                 </div>
                 
                 <!-- Button để cập nhật thông tin từ profile -->
-                <div class="mb-3" v-if="isAuthenticated">
+                <div class="mb-3" v-if="isLoggedIn">
                   <button 
                     type="button" 
                     class="btn btn-outline-info btn-sm"
@@ -497,9 +515,12 @@
                   </span>
                 </button>
                 
-                <router-link to="/cart" class="btn btn-outline-secondary w-100">
-                  <i class="fas fa-arrow-left me-2"></i>
-                  Quay lại giỏ hàng
+                <router-link 
+                  :to="isSingleProductCheckout ? '/' : '/cart'" 
+                  class="btn btn-outline-secondary w-100"
+                >
+                  <i :class="isSingleProductCheckout ? 'fas fa-home' : 'fas fa-arrow-left'" class="me-2"></i>
+                  {{ isSingleProductCheckout ? 'Về trang chủ' : 'Quay lại giỏ hàng' }}
                 </router-link>
               </div>
             </div>
@@ -515,10 +536,15 @@
               <i class="fas fa-exclamation-triangle fa-5x text-warning"></i>
             </div>
             <h3 class="text-muted mb-3">Không có sản phẩm để thanh toán</h3>
-            <p class="text-muted mb-4">Vui lòng quay lại giỏ hàng và chọn sản phẩm để thanh toán</p>
-            <router-link to="/cart" class="btn btn-primary btn-lg">
-              <i class="fas fa-arrow-left me-2"></i>
-              Quay lại giỏ hàng
+            <p class="text-muted mb-4">
+              {{ isSingleProductCheckout ? 'Vui lòng quay lại trang sản phẩm để mua hàng' : 'Vui lòng quay lại giỏ hàng và chọn sản phẩm để thanh toán' }}
+            </p>
+            <router-link 
+              :to="isSingleProductCheckout ? '/' : '/cart'" 
+              class="btn btn-primary btn-lg"
+            >
+              <i :class="isSingleProductCheckout ? 'fas fa-home' : 'fas fa-arrow-left'" class="me-2"></i>
+              {{ isSingleProductCheckout ? 'Về trang chủ' : 'Quay lại giỏ hàng' }}
             </router-link>
           </div>
         </div>
@@ -551,7 +577,27 @@ const router = useRouter()
 // Composables
 const { formatPrice, showNotification, products } = useEasyMart()
 const { cart, clearCart } = useCart()
-const { user, isAuthenticated } = useAuth()
+const { user, isLoggedIn } = useAuth()
+
+// Debug function để kiểm tra localStorage data
+const debugLocalStorageData = () => {
+  console.log('🔍 Debug LocalStorage Data:')
+  console.log('   - easymart-invoice:', localStorage.getItem('easymart-invoice'))
+  console.log('   - easymart-selected-items:', localStorage.getItem('easymart-selected-items'))
+  console.log('   - easymart-cart:', localStorage.getItem('easymart-cart'))
+  
+  try {
+    const invoice = JSON.parse(localStorage.getItem('easymart-invoice') || 'null')
+    if (invoice) {
+      console.log('   - Invoice parsed:', invoice)
+      console.log('   - Invoice keys:', Object.keys(invoice))
+      console.log('   - chiTietHoaDon:', invoice.chiTietHoaDon)
+      console.log('   - items:', invoice.items)
+    }
+  } catch (e) {
+    console.error('   - Error parsing invoice:', e)
+  }
+}
 
 // Helper function để lấy hình ảnh sản phẩm
 const getProductImage = (productId) => {
@@ -567,14 +613,14 @@ const getProductImage = (productId) => {
 // Helper function để kiểm tra trạng thái auth
 const checkAuthStatus = () => {
   console.log('🔐 Checking auth status...')
-  console.log('   - isAuthenticated:', isAuthenticated)
+  console.log('   - isLoggedIn:', isLoggedIn)
   console.log('   - user:', user)
   console.log('   - orderForm:', orderForm)
   
-  if (isAuthenticated && typeof isAuthenticated.value !== 'undefined') {
-    console.log('✅ isAuthenticated is properly initialized')
+  if (isLoggedIn && typeof isLoggedIn.value !== 'undefined') {
+    console.log('✅ isLoggedIn is properly initialized')
   } else {
-    console.log('❌ isAuthenticated is not properly initialized')
+    console.log('❌ isLoggedIn is not properly initialized')
   }
   
   if (user && typeof user.value !== 'undefined') {
@@ -588,8 +634,8 @@ const checkAuthStatus = () => {
 const prefillUserInfo = () => {
   try {
     // Kiểm tra an toàn các giá trị
-    if (!isAuthenticated || !isAuthenticated.value) {
-      console.log('⚠️ User chưa đăng nhập hoặc isAuthenticated undefined')
+    if (!isLoggedIn || !isLoggedIn.value) {
+      console.log('⚠️ User chưa đăng nhập hoặc isLoggedIn undefined')
       
       // Fallback: thử lấy thông tin từ localStorage
       tryFallbackUserInfo()
@@ -640,7 +686,7 @@ const prefillUserInfo = () => {
   } catch (error) {
     console.error('❌ Lỗi khi pre-fill user info:', error)
     console.log('🔍 Debug info:', {
-      isAuthenticated: isAuthenticated,
+      isLoggedIn: isLoggedIn,
       user: user,
       orderForm: orderForm
     })
@@ -657,7 +703,6 @@ const tryFallbackUserInfo = () => {
     
     // Thử lấy thông tin từ localStorage
     const storedUser = localStorage.getItem('easymart-user')
-    const storedAuth = localStorage.getItem('easymart-auth')
     
     if (storedUser) {
       const userData = JSON.parse(storedUser)
@@ -794,6 +839,12 @@ const isFormValid = computed(() => {
          orderForm.value.phone && 
          orderForm.value.address &&
          orderForm.value.paymentMethod
+})
+
+// Kiểm tra xem có phải mua ngay từ ProductDetail không
+const isSingleProductCheckout = computed(() => {
+  return selectedItems.value.length === 1 && 
+         false
 })
 
 // Methods
@@ -952,9 +1003,9 @@ const processOrder = async () => {
     }
     
     // Save order to localStorage (in real app, send to API)
-    const orders = JSON.parse(localStorage.getItem('easymart-orders') || '[]')
-    orders.push(order)
-    localStorage.setItem('easymart-orders', JSON.stringify(orders))
+    // const orders = JSON.parse(localStorage.getItem('easymart-orders') || '[]')
+    // orders.push(order)
+    // localStorage.setItem('easymart-orders', JSON.stringify(orders))
     
     // 🧹 Clear cart after successful order creation
     console.log('🧹 Clearing cart after successful checkout...')
@@ -1041,34 +1092,54 @@ const handlePaymentRedirect = (order) => {
 
 // Initialize
 onMounted(() => {
-  // Kiểm tra xem có hóa đơn từ Cart.vue không
+  console.log('🚀 Checkout page mounted')
+  
+  // Debug localStorage data
+  debugLocalStorageData()
+  
+  // Kiểm tra xem có mua ngay từ ProductDetail không
   const invoiceData = localStorage.getItem('easymart-invoice')
   const storedSelectedItems = localStorage.getItem('easymart-selected-items')
   
   if (invoiceData && storedSelectedItems) {
-    // Có hóa đơn từ Cart.vue
+    // Có hóa đơn từ Cart.vue, ProductDetail, hoặc Orders.vue
     const invoice = JSON.parse(invoiceData)
     const selectedProductIds = JSON.parse(storedSelectedItems)
     
-    console.log('📋 Nhận hóa đơn từ Cart.vue:', invoice)
+    console.log('📋 Nhận hóa đơn:', invoice)
     console.log('🛒 Selected items:', selectedProductIds)
+    console.log('🔍 Invoice structure:', Object.keys(invoice))
     
     // Sử dụng mã hóa đơn thay vì tạo mới
-    orderCode.value = `HD${invoice.maHD}`
+    orderCode.value = `HD${invoice.maHD || invoice.orderId || 'NEW'}`
     
-    // Lấy thông tin sản phẩm từ hóa đơn
-    if (invoice.items && invoice.items.length > 0) {
-      selectedItems.value = invoice.items.map(item => ({
-        productId: item.maSP,
-        quantity: item.soLuong,
+    // Lấy thông tin sản phẩm từ hóa đơn - ưu tiên chiTietHoaDon (từ Orders.vue)
+    if (invoice.chiTietHoaDon && invoice.chiTietHoaDon.length > 0) {
+      console.log('✅ Sử dụng chiTietHoaDon từ Orders.vue')
+      selectedItems.value = invoice.chiTietHoaDon.map(item => ({
+        productId: item.maSP || item.productId,
+        quantity: item.soLuong || item.quantity,
         product: {
-          id: item.maSP,
-          name: item.tenSP,
-          price: item.donGiaBan || item.donGia,
-          image: getProductImage(item.maSP)
+          id: item.maSP || item.productId,
+          name: item.tenSP || item.productName,
+          price: item.donGiaBan || item.donGia || item.productPrice,
+          image: getProductImage(item.maSP || item.productId)
+        }
+      }))
+    } else if (invoice.items && invoice.items.length > 0) {
+      console.log('✅ Sử dụng items từ Cart.vue/ProductDetail')
+      selectedItems.value = invoice.items.map(item => ({
+        productId: item.maSP || item.productId,
+        quantity: item.soLuong || item.quantity,
+        product: {
+          id: item.maSP || item.productId,
+          name: item.tenSP || item.productName,
+          price: item.donGiaBan || item.donGia || item.productPrice,
+          image: getProductImage(item.maSP || item.productId)
         }
       }))
     } else {
+      console.log('⚠️ Không có items trong hóa đơn, thử fallback...')
       // Fallback: lấy từ cart nếu không có items trong hóa đơn
       selectedItems.value = cart.value
         .filter(item => selectedProductIds.includes(item.productId))
@@ -1084,11 +1155,6 @@ onMounted(() => {
           }
         })
         .filter(item => item.product)
-    }
-    
-    // Pre-fill form với thông tin khách hàng nếu có
-    if (invoice.maKH) {
-      console.log('👤 Sử dụng thông tin khách hàng từ hóa đơn:', invoice.maKH)
     }
     
     // Kiểm tra trạng thái auth trước khi pre-fill
@@ -1127,10 +1193,24 @@ onMounted(() => {
       prefillUserInfo()
   }
   
-  // If no selected items, redirect to cart
+  // Debug: Log final state
+  console.log('📊 Final selectedItems state:')
+  console.log('   - Length:', selectedItems.value.length)
+  console.log('   - Items:', selectedItems.value)
+  console.log('   - Invoice data:', invoiceData ? JSON.parse(invoiceData) : 'None')
+  console.log('   - Stored selected items:', storedSelectedItems)
+  
+  // If no selected items, redirect appropriately
   if (selectedItems.value.length === 0) {
+    console.warn('⚠️ No selected items found, redirecting to cart...')
     showNotification('Vui lòng chọn sản phẩm từ giỏ hàng để thanh toán', 'warning')
-    router.push('/cart')
+    
+    // Delay redirect để user có thể thấy notification
+    setTimeout(() => {
+      router.push('/cart')
+    }, 2000)
+  } else {
+    console.log('✅ Selected items loaded successfully, staying on checkout page')
   }
 })
 </script>

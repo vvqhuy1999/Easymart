@@ -369,6 +369,7 @@
 // ==================== IMPORTS ====================
 // Vue Composition API
 import { ref, computed, onMounted, watch } from 'vue'
+import { useRouter } from 'vue-router'
 
 // Composables và Components
 import { useEasyMart } from '../composables/useEasyMart'
@@ -394,6 +395,10 @@ const props = defineProps({
 
 // Events emit về parent component
 const emit = defineEmits(['go-home', 'view-product'])
+
+// ==================== ROUTER ====================
+// Khởi tạo router
+const router = useRouter()
 
 // ==================== COMPOSABLE DATA ====================
 // Sử dụng useEasyMart composable để lấy data và methods toàn cục
@@ -429,7 +434,7 @@ const {
   shareProduct,
   compareProduct,
   setActiveTab
-} = useProductDetail(props.productId)
+} = useProductDetail(props.productId, router)
 
 // Sử dụng useInventory composable để lấy thông tin tồn kho
 const {

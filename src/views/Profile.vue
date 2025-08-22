@@ -62,14 +62,7 @@
                     <i class="fas fa-lock me-2"></i>Đổi mật khẩu
                   </button>
                 </li>
-                <li class="nav-item">
-                  <button 
-                    :class="['nav-link', { active: activeTab === 'orders' }]"
-                    @click="activeTab = 'orders'"
-                  >
-                    <i class="fas fa-shopping-bag me-2"></i>Đơn hàng
-                  </button>
-                </li>
+
               </ul>
             </div>
             
@@ -309,19 +302,7 @@
                 </form>
               </div>
               
-              <!-- Orders Tab -->
-              <div v-show="activeTab === 'orders'" class="tab-content">
-                <h5 class="mb-4">Đơn hàng của tôi</h5>
-                
-                <div class="text-center py-5">
-                  <i class="fas fa-shopping-bag text-muted" style="font-size: 3rem;"></i>
-                  <h6 class="mt-3 text-muted">Chưa có đơn hàng nào</h6>
-                  <p class="text-muted">Hãy bắt đầu mua sắm để xem lịch sử đơn hàng tại đây</p>
-                  <router-link to="/" class="btn btn-primary">
-                    <i class="fas fa-shopping-cart me-2"></i>Mua sắm ngay
-                  </router-link>
-                </div>
-              </div>
+
             </div>
           </div>
         </div>

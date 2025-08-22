@@ -1,27 +1,69 @@
 <template>
   <div class="orders-page">
-         <!-- Header -->
-     <div class="container mt-5 pt-5">
-       <div class="row">
-         <div class="col-12">
-                     <div class="d-flex justify-content-between align-items-center mb-4">
+    <!-- Header -->
+    <div class="container mt-5 pt-5">
+      <div class="row">
+        <div class="col-12">
+          <div class="d-flex justify-content-between align-items-center mb-4">
             <h1 class="text-primary mb-0">
               <i class="fas fa-box me-3"></i>Đơn hàng của tôi
             </h1>
-            <button 
-              @click="refreshOrders" 
-              class="btn btn-outline-primary"
-              :disabled="loading"
-            >
-              <i class="fas fa-sync-alt me-2" :class="{ 'fa-spin': loading }"></i>
-              Làm mới
-            </button>
+            <div class="d-flex gap-2">
+              <button 
+                @click="refreshOrders" 
+                class="btn btn-outline-primary"
+                :disabled="loading"
+              >
+                <i class="fas fa-sync-alt me-2" :class="{ 'fa-spin': loading }"></i>
+                Làm mới
+              </button>
+            </div>
           </div>
           
-                     
-         </div>
-       </div>
-     </div>
+          <!-- Order Status Tabs -->
+          <div class="order-tabs mb-4">
+            <ul class="nav nav-pills nav-fill">
+              <li class="nav-item">
+                <button 
+                  :class="getTabClass('pending')"
+                  @click="setActiveTab('pending')"
+                >
+                  <i class="fas fa-clock me-2"></i>Chờ thanh toán
+                  <span :class="getBadgeClass('pending')">{{ orderCounts.pending }}</span>
+                </button>
+              </li>
+              <li class="nav-item">
+                <button 
+                  :class="getTabClass('paid')"
+                  @click="setActiveTab('paid')"
+                >
+                  <i class="fas fa-check-circle me-2"></i>Đã thanh toán
+                  <span :class="getBadgeClass('paid')">{{ orderCounts.paid }}</span>
+                </button>
+              </li>
+              <li class="nav-item">
+                <button 
+                  :class="getTabClass('completed')"
+                  @click="setActiveTab('completed')"
+                >
+                  <i class="fas fa-shipping-fast me-2"></i>Hoàn thành
+                  <span :class="getBadgeClass('completed')">{{ orderCounts.completed }}</span>
+                </button>
+              </li>
+              <li class="nav-item">
+                <button 
+                  :class="getTabClass('cancelled')"
+                  @click="setActiveTab('cancelled')"
+                >
+                  <i class="fas fa-times-circle me-2"></i>Đã hủy
+                  <span :class="getBadgeClass('cancelled')">{{ orderCounts.cancelled }}</span>
+                </button>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <!-- Loading State -->
     <div v-if="loading" class="container">
@@ -42,9 +84,17 @@
           <div class="alert alert-danger" role="alert">
             <i class="fas fa-exclamation-triangle me-2"></i>
             <strong>Lỗi:</strong> {{ error }}
-            <button @click="loadOrders" class="btn btn-outline-danger btn-sm ms-3">
-              <i class="fas fa-redo me-1"></i>Thử lại
-            </button>
+            <div class="mt-3">
+              <button @click="loadOrders" class="btn btn-outline-danger btn-sm me-2">
+                <i class="fas fa-redo me-1"></i>Thử lại
+              </button>
+              <button @click="refreshCustomerInfo" class="btn btn-outline-info btn-sm me-2">
+                <i class="fas fa-sync-alt me-1"></i>Làm mới thông tin khách hàng
+              </button>
+              <button @click="goToProfile" class="btn btn-primary btn-sm">
+                <i class="fas fa-user-edit me-1"></i>Cập nhật thông tin cá nhân
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -54,9 +104,39 @@
     <div v-else-if="orders.length > 0" class="container">
       <div class="row">
         <div class="col-12">
-          <div class="orders-list">
+          <!-- Tab Content Info -->
+          <div class="tab-info mb-3">
+            <div class="alert alert-info d-flex align-items-center">
+              <i class="fas fa-info-circle me-2"></i>
+              <span>
+                Hiển thị {{ filteredOrders.length }} đơn hàng 
+                <strong>{{ getTabTitle(activeTab) }}</strong>
+              </span>
+            </div>
+          </div>
+          
+          <!-- No orders in current tab -->
+          <div v-if="filteredOrders.length === 0" class="text-center py-5">
+            <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+            <h4 class="text-muted">Không có đơn hàng {{ getTabTitle(activeTab).toLowerCase() }}</h4>
+            <p class="text-muted">
+              <span v-if="activeTab === 'pending'">Bạn chưa có đơn hàng nào đang chờ thanh toán.</span>
+              <span v-else-if="activeTab === 'paid'">Bạn chưa có đơn hàng nào đã thanh toán.</span>
+              <span v-else-if="activeTab === 'completed'">Bạn chưa có đơn hàng nào hoàn thành.</span>
+              <span v-else-if="activeTab === 'cancelled'">Bạn chưa có đơn hàng nào bị hủy.</span>
+            </p>
+            <button 
+              @click="setActiveTab('pending')" 
+              class="btn btn-outline-primary"
+            >
+              <i class="fas fa-clock me-2"></i>Xem đơn hàng chờ thanh toán
+            </button>
+          </div>
+          
+          <!-- Orders List -->
+          <div v-else class="orders-list">
             <div 
-              v-for="order in orders" 
+              v-for="(order, index) in filteredOrders" 
               :key="order.maHD" 
               class="order-card mb-4"
             >
@@ -66,11 +146,16 @@
                   <div class="col-md-6">
                     <h5 class="mb-1">
                       <i class="fas fa-receipt me-2 text-primary"></i>
-                      Hóa đơn #{{ order.maHD }}
+                      Hóa đơn #{{ index + 1 }}
                     </h5>
                     <small class="text-muted">
                       <i class="fas fa-calendar me-1"></i>
                       {{ formatDate(order.ngayLap) }}
+                    </small>
+                    <br>
+                    <small class="text-muted">
+                      <i class="fas fa-hashtag me-1"></i>
+                      Mã: {{ order.maHD }}
                     </small>
                   </div>
                   <div class="col-md-6 text-md-end">
@@ -187,11 +272,14 @@
                     </small>
                   </div>
                   <div class="col-md-6 text-md-end">
+                    <!-- Checkout button chỉ cho đơn hàng chờ thanh toán -->
                     <button 
-                      @click="viewOrderDetails(order.maHD)"
-                      class="btn btn-outline-primary btn-sm me-2"
+                      v-if="canCancelOrder(order.trangThai)"
+                      @click="checkoutOrder(order.maHD)"
+                      class="btn btn-success btn-sm me-2"
+                      :disabled="loading"
                     >
-                      <i class="fas fa-eye me-1"></i>Xem chi tiết
+                      <i class="fas fa-credit-card me-1"></i>Checkout
                     </button>
                     
                     <button 
@@ -220,25 +308,23 @@
       </div>
     </div>
 
-         <!-- Empty State -->
-     <div v-else class="container">
-       <div class="row justify-content-center">
-         <div class="col-md-8 text-center">
-           <div class="empty-state">
-             <i class="fas fa-box-open fa-4x text-muted mb-4"></i>
-             <h3 class="text-muted">Chưa có đơn hàng nào</h3>
-             <p class="text-muted mb-4">
-               Bạn chưa có đơn hàng nào. Hãy mua sắm và tạo đơn hàng đầu tiên!
-             </p>
-             <router-link to="/" class="btn btn-primary">
-               <i class="fas fa-shopping-cart me-2"></i>Mua sắm ngay
-             </router-link>
-           </div>
-           
-           
-         </div>
-       </div>
-     </div>
+    <!-- Empty State -->
+    <div v-else class="container">
+      <div class="row justify-content-center">
+        <div class="col-md-8 text-center">
+          <div class="empty-state">
+            <i class="fas fa-box-open fa-4x text-muted mb-4"></i>
+            <h3 class="text-muted">Chưa có đơn hàng nào</h3>
+            <p class="text-muted mb-4">
+              Bạn chưa có đơn hàng nào. Hãy mua sắm và tạo đơn hàng đầu tiên!
+            </p>
+            <router-link to="/" class="btn btn-primary">
+              <i class="fas fa-shopping-cart me-2"></i>Mua sắm ngay
+            </router-link>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -260,7 +346,6 @@ try {
   const authResult = useAuth()
   user = authResult.user
   isAuthenticated = authResult.isAuthenticated
-  console.log('✅ useAuth initialized successfully')
 } catch (err) {
   console.error('❌ useAuth failed:', err)
   user = ref(null)
@@ -276,7 +361,6 @@ try {
   error = ordersResult.error
   loadCustomerOrders = ordersResult.loadCustomerOrders
   cancelOrder = ordersResult.cancelOrder
-  console.log('✅ useOrders initialized successfully')
 } catch (err) {
   console.error('❌ useOrders failed:', err)
   // Fallback values
@@ -292,12 +376,6 @@ let cart
 try {
   const cartResult = useCart()
   cart = cartResult
-  console.log('✅ useCart initialized successfully')
-  console.log('🔍 Initial cart state:', {
-    maKH: cart.maKH,
-    isResolved: cart.isResolved,
-    hasMaKH: !!cart.maKH
-  })
 } catch (err) {
   console.error('❌ useCart failed:', err)
   cart = { maKH: null, isResolved: false }
@@ -305,72 +383,235 @@ try {
 
 // ==================== REACTIVE STATE ====================
 const currentUser = ref(null)
+const activeTab = ref('pending') // 'pending', 'paid', 'completed', 'cancelled'
 
 // ==================== COMPUTED ====================
 const hasOrders = computed(() => orders.value.length > 0)
 
+// Filtered orders based on active tab
+const filteredOrders = computed(() => {
+  if (!orders.value || orders.value.length === 0) return []
+  
+  switch (activeTab.value) {
+    case 'pending':
+      return orders.value.filter(order => {
+        const status = typeof order.trangThai === 'string' ? parseInt(order.trangThai) : order.trangThai
+        return status === 0
+      })
+    case 'paid':
+      return orders.value.filter(order => {
+        const status = typeof order.trangThai === 'string' ? parseInt(order.trangThai) : order.trangThai
+        return status === 1
+      })
+    case 'completed':
+      return orders.value.filter(order => {
+        const status = typeof order.trangThai === 'string' ? parseInt(order.trangThai) : order.trangThai
+        return status === 2
+      })
+    case 'cancelled':
+      return orders.value.filter(order => {
+        const status = typeof order.trangThai === 'string' ? parseInt(order.trangThai) : order.trangThai
+        return status === 3
+      })
+    default:
+      return orders.value.filter(order => {
+        const status = typeof order.trangThai === 'string' ? parseInt(order.trangThai) : order.trangThai
+        return status === 0 // Default to pending
+      })
+  }
+})
+
+// Order counts for each status
+const orderCounts = computed(() => {
+  if (!orders.value || orders.value.length === 0) {
+    return { pending: 0, paid: 0, completed: 0, cancelled: 0 }
+  }
+  
+  const counts = { pending: 0, paid: 0, completed: 0, cancelled: 0 }
+  
+  orders.value.forEach(order => {
+    const status = typeof order.trangThai === 'string' ? parseInt(order.trangThai) : order.trangThai
+    switch (status) {
+      case 0: counts.pending++; break
+      case 1: counts.paid++; break
+      case 2: counts.completed++; break
+      case 3: counts.cancelled++; break
+    }
+  })
+  
+  return counts
+})
+
 // ==================== METHODS ====================
+/**
+ * Helper function để extract maKH từ response data
+ */
+const extractMaKH = (data, source) => {
+  if (data?.maKH) {
+    return data.maKH
+  } else if (data?.customer?.maKH) {
+    return data.customer.maKH
+  } else if (data?.result?.maKH) {
+    return data.result.maKH
+  } else if (data?.data?.maKH) {
+    return data.data.maKH
+  } else {
+    return null
+  }
+}
+
+/**
+ * Lấy maKH từ API
+ */
+const getMaKHFromAPI = async () => {
+  try {
+    const userData = JSON.parse(localStorage.getItem('easymart-user'))
+    if (!userData) {
+      return null
+    }
+    
+    // ƯU TIÊN 1: Thử tìm maKH từ email
+    if (userData?.email) {
+      
+      try {
+        const token = getToken()
+        const response = await fetch(`${API_CONFIG.BASE_URL}/api/khachhang/by-email/${encodeURIComponent(userData.email)}`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          credentials: 'include'
+        })
+        
+        if (response.ok) {
+          const customerData = await response.json()
+          const maKH = extractMaKH(customerData, 'email')
+          if (maKH) return maKH
+        }
+      } catch (emailErr) {
+        // Email lookup failed, continue to next method
+      }
+    }
+    
+    // ƯU TIÊN 2: Thử tìm từ user ID
+    const userId = userData?.id || userData?.sub || userData?.maNguoiDung
+    
+    if (userId && userId !== 'OAUTH_USER') {
+      try {
+        const token = getToken()
+        const response = await fetch(`${API_CONFIG.BASE_URL}/api/khachhang/by-nguoidung/${userId}`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          credentials: 'include'
+        })
+        
+        if (response.ok) {
+          const customerData = await response.json()
+          const maKH = extractMaKH(customerData, 'User ID API')
+          if (maKH) return maKH
+        }
+      } catch (userIdErr) {
+        // User ID lookup failed, continue to next method
+      }
+    }
+    
+    // ƯU TIÊN 3: Thử tìm từ current user endpoint (chỉ khi cần thiết)
+    // Bỏ qua nếu endpoint này bị lỗi 500
+    try {
+      const token = getToken()
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/khachhang/current`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include'
+      })
+      
+      if (response.ok) {
+        const customerData = await response.json()
+        const maKH = extractMaKH(customerData, 'current endpoint')
+        if (maKH) return maKH
+      }
+    } catch (currentErr) {
+      // Current endpoint failed, no maKH found
+    }
+    
+    return null
+    
+  } catch (err) {
+    console.error('❌ Error getting maKH from API:', err)
+    return null
+  }
+}
+
 /**
  * Lấy danh sách đơn hàng của khách hàng
  */
 const loadOrders = async () => {
   try {
-    console.log('🔄 Loading orders...')
-    
-    // Đợi một chút ngắn để đảm bảo user data đã được load
-    await new Promise(resolve => setTimeout(resolve, 50))
-    
-    // Tìm maKH từ các nguồn khác nhau (ưu tiên useCart)
+    // Tìm maKH từ các nguồn khác nhau
     let maKH = cart?.maKH || 
-                currentUser.value?.khachHang?.maKH || 
                 currentUser.value?.maKH || 
-                currentUser.value?.customer?.maKH
-    
-    console.log('🔍 Initial maKH search result:', maKH)
-    console.log('🔍 Cart maKH:', cart?.maKH)
-    console.log('🔍 CurrentUser keys:', currentUser.value ? Object.keys(currentUser.value) : 'null')
+                currentUser.value?.khachHang?.maKH
     
     if (!maKH) {
-      console.log('🔄 No maKH found, using fast fallback approach...')
-      
-      // Fast fallback: Sử dụng hardcoded maKH ngay để tăng tốc độ
-      maKH = 'KHC86D136D'
-      console.log('⚡ Using fast fallback maKH:', maKH)
-      
-      // Cập nhật currentUser với maKH
-      if (!currentUser.value) {
-        currentUser.value = {}
-      }
-      currentUser.value.maKH = maKH
-      
-      // Background: Thử lấy maKH thực từ API và cập nhật sau (không block UI)
-      getMaKHFromAPI().then(realMaKH => {
-        if (realMaKH && realMaKH !== maKH) {
-          console.log('🔄 Found real maKH in background:', realMaKH)
+      // Thử lấy maKH từ API
+      const realMaKH = await getMaKHFromAPI()
+      if (realMaKH) {
+        maKH = realMaKH
+        
+        // Cập nhật currentUser với thông tin customer
+        if (currentUser.value) {
           currentUser.value.maKH = realMaKH
-          
-          // Reload orders với maKH thực nếu khác
-          if (realMaKH !== 'KHC86D136D') {
-            console.log('🔄 Reloading orders with real maKH...')
-            loadCustomerOrders(realMaKH).catch(err => {
-              console.log('⚠️ Background reload failed:', err.message)
-            })
-          }
+          currentUser.value.khachHang = { maKH: realMaKH }
         }
-      }).catch(err => {
-        console.log('⚠️ Background maKH lookup failed:', err.message)
-      })
+      } else {
+        // Không tìm thấy maKH, không thể load orders
+        error.value = 'Không thể xác định thông tin khách hàng. Vui lòng đăng nhập lại hoặc cập nhật thông tin cá nhân trong trang Profile.'
+        return
+      }
     }
-    
-    console.log('🔄 Loading orders for customer:', maKH)
     
     // loadCustomerOrders sẽ tự động cập nhật orders state
     await loadCustomerOrders(maKH)
-    
-    console.log('✅ Orders loaded successfully, count:', orders.value?.length)
   } catch (err) {
     console.error('❌ Error loading orders:', err)
     error.value = err.message || 'Có lỗi xảy ra khi tải danh sách đơn hàng'
+  }
+}
+
+/**
+ * Chuyển đến trang Profile để cập nhật thông tin cá nhân
+ */
+const goToProfile = () => {
+  router.push('/profile')
+}
+
+/**
+ * Refresh customer info từ API
+ */
+const refreshCustomerInfo = async () => {
+  try {
+    const maKH = await getMaKHFromAPI()
+    if (maKH) {
+      // Cập nhật currentUser
+      if (currentUser.value) {
+        currentUser.value.maKH = maKH
+        currentUser.value.khachHang = { maKH: maKH }
+      }
+      // Thử load orders lại
+      await loadOrders()
+      return true
+    }
+    return false
+  } catch (err) {
+    console.error('❌ Error refreshing customer info:', err)
+    return false
   }
 }
 
@@ -433,7 +674,7 @@ const getStatusBadgeClass = (status) => {
   const statusMap = {
     0: 'badge bg-warning text-dark',
     1: 'badge bg-success',
-    2: 'badge bg-info', 
+    2: 'badge bg-info',
     3: 'badge bg-danger',
     4: 'badge bg-secondary'
   }
@@ -450,13 +691,11 @@ const getStatusText = (status) => {
   
   const statusMap = {
     0: 'Chờ thanh toán',
-    1: 'Đã thanh toán', 
+    1: 'Đã thanh toán',
     2: 'Đang xử lý',
     3: 'Đã hủy',
     4: 'Hoàn trả'
   }
-  
-  console.log(`🔍 Status mapping: ${status} (${typeof status}) -> ${numStatus} -> ${statusMap[numStatus]}`)
   
   return statusMap[numStatus] || `Không xác định (${status})`
 }
@@ -470,25 +709,19 @@ const canCancelOrder = (status) => {
   return numStatus === 0
 }
 
+
+
+
+
+
 /**
  * Làm mới danh sách đơn hàng (force reload)
  */
 const refreshOrders = async () => {
   try {
-    console.log('🔄 Manual refresh orders triggered - FORCE RELOAD FROM SERVER')
-    
     // Clear current orders trước khi load lại
     orders.value = []
-    
     await loadOrders()
-    console.log('✅ Orders refreshed successfully')
-    
-    // Double check: in ra trạng thái của các orders
-    console.log('🔍 Current orders status after refresh:')
-    orders.value.forEach(order => {
-      console.log(`   Order ${order.maHD}: Status ${order.trangThai} (${getStatusText(order.trangThai)})`)
-    })
-    
   } catch (err) {
     console.error('❌ Error refreshing orders:', err)
     alert('Có lỗi xảy ra khi làm mới danh sách đơn hàng!')
@@ -496,12 +729,100 @@ const refreshOrders = async () => {
 }
 
 /**
- * Xem chi tiết đơn hàng
+ * Thay đổi tab active
  */
-const viewOrderDetails = (orderId) => {
-  console.log('👁️ Viewing order details:', orderId)
-  // TODO: Implement order details view
-  // router.push(`/orders/${orderId}`)
+const setActiveTab = (tab) => {
+  activeTab.value = tab
+}
+
+/**
+ * Lấy class cho tab button
+ */
+const getTabClass = (tab) => {
+  return activeTab.value === tab 
+    ? 'nav-link active' 
+    : 'nav-link'
+}
+
+/**
+ * Lấy badge class cho số đếm
+ */
+const getBadgeClass = (tab) => {
+  const baseClass = 'badge rounded-pill ms-2'
+  switch (tab) {
+    case 'pending': return `${baseClass} bg-warning text-dark`
+    case 'paid': return `${baseClass} bg-success`
+    case 'completed': return `${baseClass} bg-info`
+    case 'cancelled': return `${baseClass} bg-danger`
+    default: return `${baseClass} bg-warning text-dark`
+  }
+}
+
+/**
+ * Lấy title cho tab
+ */
+const getTabTitle = (tab) => {
+  switch (tab) {
+    case 'pending': return 'chờ thanh toán'
+    case 'paid': return 'đã thanh toán'
+    case 'completed': return 'hoàn thành'
+    case 'cancelled': return 'đã hủy'
+    default: return 'chờ thanh toán'
+  }
+}
+
+/**
+ * Checkout đơn hàng
+ */
+const checkoutOrder = async (orderId) => {
+  try {
+    if (!orderId) {
+      alert('Không có mã đơn hàng để checkout!')
+      return
+    }
+    
+    // Tìm đơn hàng trong danh sách
+    const order = orders.value.find(o => o.maHD === orderId)
+    
+    if (order) {
+      // Kiểm tra trạng thái đơn hàng
+      if (order.trangThai !== 0) {
+        alert('Chỉ có thể checkout đơn hàng đang chờ thanh toán!')
+        return
+      }
+      
+      // Lưu thông tin đơn hàng vào localStorage để checkout page có thể sử dụng
+      const invoiceData = {
+        maHD: order.maHD,
+        tongTien: order.tongTien,
+        chiTietHoaDon: order.chiTietHoaDon || order.chiTietList || [],
+        timestamp: new Date().toISOString(),
+        source: 'orders-page'
+      }
+      
+      // Tạo selected items từ chi tiết hóa đơn
+      const selectedItems = (order.chiTietHoaDon || order.chiTietList || []).map(item => 
+        item.sanPham?.maSP || item.maSP
+      ).filter(Boolean)
+      
+      localStorage.setItem('easymart-invoice', JSON.stringify(invoiceData))
+      localStorage.setItem('easymart-selected-items', JSON.stringify(selectedItems))
+      
+      console.log('✅ Saved to localStorage:', {
+        invoice: invoiceData,
+        selectedItems: selectedItems
+      })
+      
+      // Chuyển đến trang checkout - đơn giản như trong giỏ hàng
+      router.push('/checkout')
+      
+    } else {
+      alert('Không tìm thấy thông tin đơn hàng!')
+    }
+  } catch (error) {
+    console.error('❌ Error during checkout:', error)
+    alert('Không thể chuyển đến trang checkout. Vui lòng thử lại!')
+  }
 }
 
 /**
@@ -544,11 +865,6 @@ const cancelOrderHandler = async (orderId) => {
     console.log('✅ Order cancelled and UI updated successfully')
   } catch (err) {
     console.error('❌ Error cancelling order:', err)
-    console.error('❌ Error details:', {
-      name: err.name,
-      message: err.message,
-      stack: err.stack
-    })
     
     // Xử lý các loại lỗi khác nhau
     let errorMessage = err.message || 'Lỗi không xác định'
@@ -600,185 +916,60 @@ const cancelOrderHandler = async (orderId) => {
  * Kiểm tra user có đăng nhập thực sự không
  */
 const checkUserLoginStatus = () => {
-  console.log('🔍 Checking user login status...')
-  
   // Kiểm tra localStorage - chỉ cần easymart-user là đủ
   const storedUser = localStorage.getItem('easymart-user')
-  const token = getTokenFromCookie()
+  const token = getToken()
   
-  console.log('   - localStorage easymart-user:', storedUser ? 'Present' : 'Missing')
-  console.log('   - Cookie token:', token ? 'Present' : 'Missing')
-  
-  if (storedUser && token) {
-    console.log('✅ User appears to be logged in (has user data and token)')
-    return true
-  } else {
-    console.log('❌ User not logged in (missing user data or token)')
-    return false
-  }
+  return storedUser && token
 }
-
-/**
- * Lấy token từ cookie (sử dụng tokenStorage utility)
- */
-const getTokenFromCookie = () => {
-  return getToken()
-}
-
-
-
-/**
- * Lấy maKH từ API sử dụng user ID
- */
- const getMaKHFromAPI = async () => {
-  try {
-    console.log('🔍 Getting maKH from API...')
-    
-    const userData = JSON.parse(localStorage.getItem('easymart-user'))
-    console.log('🔍 User data from localStorage:', userData)
-    
-    // Thử các trường khác nhau để lấy user ID - bao gồm cả sub cho OAuth users
-    const userId = userData?.id || 
-                   userData?.maNguoiDung || 
-                   userData?.userId ||
-                   userData?.sub ||
-                   userData?.nguoidung?.maNguoiDung
-    
-    console.log('🔍 Trying userId:', userId)
-    console.log('🔍 UserData keys:', Object.keys(userData || {}))
-    
-    // Nếu userId là "OAUTH_USER" hoặc không có, thử tìm từ sub hoặc email
-    if (!userId || userId === 'OAUTH_USER') {
-      console.log('⚠️ Invalid or missing user ID, trying alternative approaches...')
-      
-      // Bỏ qua email lookup vì API có thể không tồn tại
-      console.log('⚠️ Skipping email lookup - API endpoint may not exist')
-      
-      // Fallback: sử dụng hardcode maKH đã biết
-      console.log('🔄 Using hardcoded maKH: KHC86D136D')
-      return 'KHC86D136D'
-    }
-    
-    console.log('🔍 Using User ID for API call:', userId)
-    
-    // Gọi API để lấy thông tin khách hàng
-    const token = getTokenFromCookie()
-    const response = await fetch(`${API_CONFIG.BASE_URL}/api/khachhang/by-nguoidung/${userId}`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      credentials: 'include'
-    })
-    
-    console.log('📡 API Response status:', response.status)
-    
-    if (response.ok) {
-      const customerData = await response.json()
-      console.log('✅ Customer data from API:', customerData)
-      
-      if (customerData?.maKH) {
-        console.log('✅ Found maKH from API:', customerData.maKH)
-        return customerData.maKH
-      } else if (customerData?.result?.maKH) {
-        console.log('✅ Found maKH in result:', customerData.result.maKH)
-        return customerData.result.maKH
-      } else {
-        console.log('❌ No maKH in customer data')
-        console.log('   Available keys:', Object.keys(customerData || {}))
-        return null
-      }
-    } else {
-      console.error('❌ API Error:', response.status, response.statusText)
-      const errorText = await response.text().catch(() => 'Unknown error')
-      console.error('   Error details:', errorText)
-      return null
-    }
-  } catch (err) {
-    console.error('❌ Error getting maKH from API:', err)
-    
-    // Fallback: sử dụng hardcode maKH đã biết
-    console.log('🔄 API failed, using hardcoded maKH: KHC86D136D')
-    return 'KHC86D136D'
-  }
-}
-
-
 
 // ==================== LIFECYCLE HOOKS ====================
 onMounted(async () => {
-  console.log('🚀 Orders page mounted')
-  
   try {
-    // Đợi một chút ngắn để đảm bảo tất cả composables đã được khởi tạo
-    await new Promise(resolve => setTimeout(resolve, 100))
-    
     // Kiểm tra user có đăng nhập thực sự không
     const isLoggedIn = checkUserLoginStatus()
     
     if (!isLoggedIn) {
-      console.log('⚠️ User not logged in, redirecting to login')
       router.push('/login')
       return
     }
     
     // Lấy thông tin user từ localStorage
-    let userData = null
-    
-    try {
-      const storedUser = localStorage.getItem('easymart-user')
-      if (storedUser) {
-        userData = JSON.parse(storedUser)
-        console.log('✅ User data loaded from localStorage:', userData)
-        console.log('   - Keys:', Object.keys(userData))
-        console.log('   - Email:', userData.email)
-        console.log('   - Sub:', userData.sub)
-        console.log('   - ID:', userData.id)
-      } else {
-        console.error('❌ No user data in localStorage')
-        router.push('/login')
-        return
-      }
-    } catch (err) {
-      console.error('❌ Error parsing user data:', err)
+    const userData = JSON.parse(localStorage.getItem('easymart-user') || 'null')
+    if (!userData) {
       router.push('/login')
       return
     }
     
     currentUser.value = userData
     
-    // Đợi cart resolve với timeout ngắn hơn
-    if (cart && !cart.isResolved) {
-      console.log('⏳ Waiting for cart to resolve...')
-      let attempts = 0
-      while (!cart.isResolved && attempts < 5) {
-        await new Promise(resolve => setTimeout(resolve, 50))
-        attempts++
-      }
-      console.log(`✅ Cart resolution status: ${cart.isResolved}, attempts: ${attempts}`)
+    // Thử refresh customer info trước khi load orders
+    const customerRefreshed = await refreshCustomerInfo()
+    
+    if (!customerRefreshed) {
+      // Load orders
+      await loadOrders()
     }
     
-    // Load orders
-    await loadOrders()
-    
-    // Tự động refresh orders mỗi 30 giây để cập nhật trạng thái
+    // Tự động refresh orders mỗi 30 giây
     const refreshInterval = setInterval(async () => {
       try {
-        console.log('🔄 Auto-refreshing orders...')
         await loadOrders()
       } catch (err) {
         console.warn('⚠️ Auto-refresh failed:', err.message)
       }
-    }, 30000) // 30 seconds
+    }, 30000)
     
     // Cleanup interval khi component bị unmount
-    onUnmounted(() => {
+    // Đặt onUnmounted ở ngoài async function để tránh warning
+    const cleanup = () => {
       if (refreshInterval) {
         clearInterval(refreshInterval)
-        console.log('🧹 Cleared orders auto-refresh interval')
       }
-    })
+    }
+    
+    // Đăng ký cleanup function
+    onUnmounted(cleanup)
     
   } catch (err) {
     console.error('❌ Error in onMounted:', err)
@@ -896,5 +1087,100 @@ onMounted(async () => {
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
   transition: all 0.3s ease;
 }
-</style>
 
+/* Order Tabs */
+.order-tabs .nav-pills {
+  background: white;
+  border-radius: 15px;
+  padding: 0.5rem;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.order-tabs .nav-pills .nav-item {
+  flex: 1;
+}
+
+.order-tabs .nav-pills .nav-link {
+  background: transparent;
+  border: none;
+  border-radius: 10px;
+  color: #6c757d;
+  font-weight: 500;
+  padding: 0.75rem 1rem;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.order-tabs .nav-pills .nav-link:hover {
+  background: rgba(0, 123, 255, 0.1);
+  color: #007bff;
+  transform: translateY(-2px);
+}
+
+.order-tabs .nav-pills .nav-link.active {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+}
+
+.order-tabs .nav-pills .nav-link.active:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+}
+
+.order-tabs .badge {
+  font-size: 0.7rem;
+  min-width: 1.5rem;
+  height: 1.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Tab content */
+.tab-info .alert {
+  border-radius: 10px;
+  border: none;
+  background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+  color: #1976d2;
+}
+
+/* Responsive tabs */
+@media (max-width: 768px) {
+  .order-tabs .nav-pills .nav-link {
+    font-size: 0.85rem;
+    padding: 0.5rem 0.25rem;
+  }
+  
+  .order-tabs .nav-pills .nav-link i {
+    display: none;
+  }
+  
+  .order-tabs .badge {
+    font-size: 0.6rem;
+    min-width: 1.2rem;
+    height: 1.2rem;
+  }
+}
+
+@media (max-width: 576px) {
+  .order-tabs .nav-pills {
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+  
+  .order-tabs .nav-pills .nav-link {
+    justify-content: flex-start;
+  }
+  
+  .order-tabs .nav-pills .nav-link i {
+    display: inline;
+  }
+}
+</style>

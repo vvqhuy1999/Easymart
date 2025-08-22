@@ -1,7 +1,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useEasyMart } from './useEasyMart'
 
-export function useProductDetail(productId) {
+export function useProductDetail(productId, router = null) {
   // Use the main composable
   const { products, categories, addToCart, formatPrice, showNotification } = useEasyMart()
   
@@ -205,35 +205,49 @@ export function useProductDetail(productId) {
     // Check if user is logged in
     const user = JSON.parse(localStorage.getItem('easymart-user') || 'null')
     if (!user) {
-      // Add product to cart first
-      addToCartWithQuantity()
-      
-      // Save selected items and redirect path
+      // Save selected items and redirect path for after login
       localStorage.setItem('easymart-selected-items', JSON.stringify([currentProduct.value.maSP || currentProduct.value.id]))
       localStorage.setItem('easymart-redirect-after-login', '/checkout')
       
       showNotification('Vui lòng đăng nhập để tiến hành thanh toán!', 'warning')
       
-      // Redirect to login
+      // Redirect to login page
       setTimeout(() => {
         window.location.href = '/login'
       }, 800)
       return
     }
 
+    // User is logged in - proceed to checkout
     // Add product to cart first
     addToCartWithQuantity()
     
     // Save selected items to localStorage for checkout
     localStorage.setItem('easymart-selected-items', JSON.stringify([currentProduct.value.maSP || currentProduct.value.id]))
     
+    // Save product info for single product checkout to invoice
+    localStorage.setItem('easymart-invoice', JSON.stringify({
+      items: [{
+        maSP: currentProduct.value.maSP || currentProduct.value.id,
+        tenSP: currentProduct.value.name,
+        donGia: currentProduct.value.price,
+        soLuong: quantity.value
+      }],
+      orderId: 'NEW',
+      timestamp: new Date().toISOString()
+    }))
+    
     // Show notification and redirect
     showNotification('Chuyển đến trang thanh toán...', 'info')
     
     // Use setTimeout to allow notification to show
     setTimeout(() => {
-      // Navigate to checkout page
-      window.location.href = '/checkout'
+      // Navigate to checkout page using router if available, otherwise fallback to window.location
+      if (router) {
+        router.push('/checkout')
+      } else {
+        window.location.href = '/checkout'
+      }
     }, 800)
   }
 

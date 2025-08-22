@@ -1653,9 +1653,6 @@ const logout = async () => {
     // Clean up all local data
     localStorage.removeItem('easymart-user')
     removeStorageItem('easymart-token')
-    localStorage.removeItem('easymart-user-email')
-    localStorage.removeItem('easymart-user-role')
-    localStorage.removeItem('easymart-user-id')
     sessionStorage.removeItem('oauth2-frontend-redirect')
     sessionStorage.removeItem('google-credential')
     sessionStorage.removeItem('oauth2-login-mode')
