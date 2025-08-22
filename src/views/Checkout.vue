@@ -107,6 +107,19 @@
                     placeholder="Ghi chú về đơn hàng, ví dụ: thời gian hay chỉ dẫn địa điểm giao hàng chi tiết hơn."
                   ></textarea>
                 </div>
+                
+                <!-- Button để cập nhật thông tin từ profile -->
+                <div class="mb-3" v-if="isAuthenticated">
+                  <button 
+                    type="button" 
+                    class="btn btn-outline-info btn-sm"
+                    @click="prefillUserInfo"
+                    title="Cập nhật thông tin từ profile"
+                  >
+                    <i class="fas fa-sync-alt me-2"></i>
+                    Cập nhật thông tin từ profile
+                  </button>
+                </div>
               </form>
             </div>
           </div>
@@ -529,6 +542,8 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useEasyMart } from '../composables/useEasyMart'
 import { useCart } from '../composables/useCart'
+import { useAuth } from '../composables/useAuth'
+import { API_CONFIG, API_ENDPOINTS } from '../config/api.js'
 
 // Router
 const router = useRouter()
@@ -536,6 +551,134 @@ const router = useRouter()
 // Composables
 const { formatPrice, showNotification, products } = useEasyMart()
 const { cart, clearCart } = useCart()
+const { user, isAuthenticated } = useAuth()
+
+// Helper function để lấy hình ảnh sản phẩm
+const getProductImage = (productId) => {
+  if (!productId) return '/placeholder-image.jpg'
+  
+  // Sử dụng API hình ảnh sản phẩm với BASE_URL
+  const imageUrls = API_ENDPOINTS.IMAGES.PRODUCT_IMAGES(productId)
+  
+  // Trả về hình ảnh đầu tiên với BASE_URL hoặc placeholder
+  return imageUrls[0] ? `${API_CONFIG.BASE_URL}${imageUrls[0]}` : '/placeholder-image.jpg'
+}
+
+// Helper function để kiểm tra trạng thái auth
+const checkAuthStatus = () => {
+  console.log('🔐 Checking auth status...')
+  console.log('   - isAuthenticated:', isAuthenticated)
+  console.log('   - user:', user)
+  console.log('   - orderForm:', orderForm)
+  
+  if (isAuthenticated && typeof isAuthenticated.value !== 'undefined') {
+    console.log('✅ isAuthenticated is properly initialized')
+  } else {
+    console.log('❌ isAuthenticated is not properly initialized')
+  }
+  
+  if (user && typeof user.value !== 'undefined') {
+    console.log('✅ user is properly initialized')
+  } else {
+    console.log('❌ user is not properly initialized')
+  }
+}
+
+// Helper function để pre-fill thông tin người dùng
+const prefillUserInfo = () => {
+  try {
+    // Kiểm tra an toàn các giá trị
+    if (!isAuthenticated || !isAuthenticated.value) {
+      console.log('⚠️ User chưa đăng nhập hoặc isAuthenticated undefined')
+      
+      // Fallback: thử lấy thông tin từ localStorage
+      tryFallbackUserInfo()
+      return
+    }
+    
+    if (!user || !user.value) {
+      console.log('⚠️ User object chưa sẵn sàng hoặc user undefined')
+      
+      // Fallback: thử lấy thông tin từ localStorage
+      tryFallbackUserInfo()
+      return
+    }
+    
+    console.log('👤 Pre-filling user info:', user.value)
+    
+    // Điền thông tin từ user profile
+    if (user.value.name) {
+      orderForm.value.fullName = user.value.name
+    }
+    
+    if (user.value.email) {
+      orderForm.value.email = user.value.email
+    }
+    
+    // Nếu có thông tin khách hàng chi tiết, sử dụng
+    if (user.value.khachHang) {
+      const khachHang = user.value.khachHang
+      
+      if (khachHang.hoTen) {
+        orderForm.value.fullName = khachHang.hoTen
+      }
+      
+      if (khachHang.sdt) {
+        orderForm.value.phone = khachHang.sdt
+      }
+      
+      if (khachHang.diaChi) {
+        orderForm.value.address = khachHang.diaChi
+      }
+      
+      if (khachHang.nguoiDung?.email) {
+        orderForm.value.email = khachHang.nguoiDung.email
+      }
+    }
+    
+    console.log('✅ Form đã được pre-fill:', orderForm.value)
+  } catch (error) {
+    console.error('❌ Lỗi khi pre-fill user info:', error)
+    console.log('🔍 Debug info:', {
+      isAuthenticated: isAuthenticated,
+      user: user,
+      orderForm: orderForm
+    })
+    
+    // Fallback: thử lấy thông tin từ localStorage
+    tryFallbackUserInfo()
+  }
+}
+
+// Fallback function để lấy thông tin từ localStorage
+const tryFallbackUserInfo = () => {
+  try {
+    console.log('🔄 Trying fallback: getting user info from localStorage...')
+    
+    // Thử lấy thông tin từ localStorage
+    const storedUser = localStorage.getItem('easymart-user')
+    const storedAuth = localStorage.getItem('easymart-auth')
+    
+    if (storedUser) {
+      const userData = JSON.parse(storedUser)
+      console.log('📦 Found user data in localStorage:', userData)
+      
+      if (userData.name) {
+        orderForm.value.fullName = userData.name
+      }
+      
+      if (userData.email) {
+        orderForm.value.email = userData.email
+      }
+      
+      console.log('✅ Fallback pre-fill successful')
+    } else {
+      console.log('⚠️ No user data found in localStorage')
+    }
+  } catch (fallbackError) {
+    console.error('❌ Fallback also failed:', fallbackError)
+  }
+}
 
 // Local state
 const isProcessing = ref(false)
@@ -742,28 +885,70 @@ const processOrder = async () => {
   isProcessing.value = true
   
   try {
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 2000))
+    // Kiểm tra xem có hóa đơn từ Cart.vue không
+    const invoiceData = localStorage.getItem('easymart-invoice')
+    let order
     
-    // Create order object
-    const order = {
-      orderCode: orderCode.value,
-      customer: { ...orderForm.value },
-      items: selectedItems.value,
-      summary: {
-        subtotal: subtotal.value,
-        shippingFee: shippingFee.value,
-        couponDiscount: couponDiscount.value,
-        total: total.value,
-        itemsCount: totalItemsCount.value
-      },
-      coupon: appliedCoupon.value ? {
-        code: appliedCoupon.value.code,
-        description: appliedCoupon.value.description,
-        discountType: appliedCoupon.value.discountType,
-        discountValue: couponDiscount.value
-      } : null,
-      createdAt: new Date().toISOString()
+    if (invoiceData) {
+      // Có hóa đơn rồi, chỉ cần cập nhật thông tin giao hàng và thanh toán
+      const invoice = JSON.parse(invoiceData)
+      
+      console.log('📋 Cập nhật thông tin giao hàng cho hóa đơn:', invoice.maHD)
+      
+      // TODO: Gọi API để cập nhật thông tin giao hàng của hóa đơn
+      // await updateInvoiceShippingInfo(invoice.maHD, orderForm.value)
+      
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1000))
+      
+      // Create order object với thông tin hóa đơn
+      order = {
+        orderCode: `HD${invoice.maHD}`,
+        invoiceId: invoice.maHD,
+        customer: { ...orderForm.value },
+        items: selectedItems.value,
+        summary: {
+          subtotal: subtotal.value,
+          shippingFee: shippingFee.value,
+          couponDiscount: couponDiscount.value,
+          total: total.value,
+          itemsCount: totalItemsCount.value
+        },
+        coupon: appliedCoupon.value ? {
+          code: appliedCoupon.value.code,
+          description: appliedCoupon.value.description,
+          discountType: appliedCoupon.value.discountType,
+          discountValue: couponDiscount.value
+        } : null,
+        createdAt: invoice.ngayLap || new Date().toISOString()
+      }
+    } else {
+      // Không có hóa đơn, tạo mới (fallback)
+      console.log('⚠️ Không có hóa đơn, tạo đơn hàng mới')
+      
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      
+      // Create order object
+      order = {
+        orderCode: orderCode.value,
+        customer: { ...orderForm.value },
+        items: selectedItems.value,
+        summary: {
+          subtotal: subtotal.value,
+          shippingFee: shippingFee.value,
+          couponDiscount: couponDiscount.value,
+          total: total.value,
+          itemsCount: totalItemsCount.value
+        },
+        coupon: appliedCoupon.value ? {
+          code: appliedCoupon.value.code,
+          description: appliedCoupon.value.description,
+          discountType: appliedCoupon.value.discountType,
+          discountValue: couponDiscount.value
+        } : null,
+        createdAt: new Date().toISOString()
+      }
     }
     
     // Save order to localStorage (in real app, send to API)
@@ -853,23 +1038,90 @@ const handlePaymentRedirect = (order) => {
 
 // Initialize
 onMounted(() => {
-  // Generate order code
-  orderCode.value = generateOrderCode()
-  
-  // Get selected items from localStorage
+  // Kiểm tra xem có hóa đơn từ Cart.vue không
+  const invoiceData = localStorage.getItem('easymart-invoice')
   const storedSelectedItems = localStorage.getItem('easymart-selected-items')
-  if (storedSelectedItems) {
+  
+  if (invoiceData && storedSelectedItems) {
+    // Có hóa đơn từ Cart.vue
+    const invoice = JSON.parse(invoiceData)
     const selectedProductIds = JSON.parse(storedSelectedItems)
-    selectedItems.value = cart.value
-      .filter(item => selectedProductIds.includes(item.productId))
-      .map(item => {
-        const product = products.value.find(p => p.id === item.productId)
-        return {
-          ...item,
-          product: product
+    
+    console.log('📋 Nhận hóa đơn từ Cart.vue:', invoice)
+    console.log('🛒 Selected items:', selectedProductIds)
+    
+    // Sử dụng mã hóa đơn thay vì tạo mới
+    orderCode.value = `HD${invoice.maHD}`
+    
+    // Lấy thông tin sản phẩm từ hóa đơn
+    if (invoice.items && invoice.items.length > 0) {
+      selectedItems.value = invoice.items.map(item => ({
+        productId: item.maSP,
+        quantity: item.soLuong,
+        product: {
+          id: item.maSP,
+          name: item.tenSP,
+          price: item.donGiaBan || item.donGia,
+          image: getProductImage(item.maSP)
         }
-      })
-      .filter(item => item.product)
+      }))
+    } else {
+      // Fallback: lấy từ cart nếu không có items trong hóa đơn
+      selectedItems.value = cart.value
+        .filter(item => selectedProductIds.includes(item.productId))
+        .map(item => {
+          const product = products.value.find(p => p.id === item.productId)
+          if (product) {
+            // Cập nhật hình ảnh sản phẩm
+            product.image = getProductImage(item.productId)
+          }
+          return {
+            ...item,
+            product: product
+          }
+        })
+        .filter(item => item.product)
+    }
+    
+    // Pre-fill form với thông tin khách hàng nếu có
+    if (invoice.maKH) {
+      console.log('👤 Sử dụng thông tin khách hàng từ hóa đơn:', invoice.maKH)
+    }
+    
+    // Kiểm tra trạng thái auth trước khi pre-fill
+    checkAuthStatus()
+    
+    // Pre-fill thông tin người dùng vào form
+    prefillUserInfo()
+    
+  } else {
+    // Không có hóa đơn, tạo mới
+    orderCode.value = generateOrderCode()
+    
+    // Get selected items from localStorage
+    if (storedSelectedItems) {
+      const selectedProductIds = JSON.parse(storedSelectedItems)
+      selectedItems.value = cart.value
+        .filter(item => selectedProductIds.includes(item.productId))
+        .map(item => {
+          const product = products.value.find(p => p.id === item.productId)
+          if (product) {
+            // Cập nhật hình ảnh sản phẩm
+            product.image = getProductImage(item.productId)
+          }
+          return {
+            ...item,
+            product: product
+          }
+        })
+        .filter(item => item.product)
+      }
+      
+      // Kiểm tra trạng thái auth trước khi pre-fill
+      checkAuthStatus()
+      
+      // Pre-fill thông tin người dùng vào form
+      prefillUserInfo()
   }
   
   // If no selected items, redirect to cart

@@ -50,7 +50,7 @@
     
     <div class="card-body d-flex flex-column">
       <div class="d-flex align-items-center justify-content-between mb-2">
-        <div class="d-flex gap-1">
+                 <div class="d-flex gap-1">
           <i 
             v-for="star in 5" 
             :key="star"
@@ -61,7 +61,9 @@
             style="font-size: 0.875rem;"
           ></i>
         </div>
-        <small class="text-muted">({{ product.reviewCount || randomReviewCount }})</small>
+        
+        <small v-if="stockQuantity !== null" :class="stockStatusClass" class="ms-2">({{ stockQuantity }})</small>
+        <small v-else class="text-muted ms-2">(Đang tải...)</small>
       </div>
       
       <h6 class="card-title fw-semibold text-dark mb-3 lh-sm" style="height: 2.8rem; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">
@@ -93,7 +95,8 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, ref, watch, onMounted } from 'vue'
+import { useInventory } from '../composables/useInventory.js'
 
 // Props
 const props = defineProps({
@@ -113,6 +116,13 @@ const emit = defineEmits(['add-to-cart', 'view-detail', 'add-to-wishlist'])
 // Reactive data
 const isLoading = ref(false)
 
+// Inventory composable
+const { getProductStock, getStockStatusClass } = useInventory()
+const stockQuantity = ref(null)
+const stockStatusClass = ref('text-muted')
+// Optional: set a fixed maKho for single store mode
+const MA_KHO = 1
+
 // Computed
 const discountPercentage = computed(() => {
   if (!props.product.originalPrice) return 0
@@ -128,9 +138,7 @@ const isBestSeller = computed(() => {
   return props.product.isBestSeller || Math.random() > 0.8
 })
 
-const randomReviewCount = computed(() => {
-  return Math.floor(Math.random() * 100) + 10
-})
+
 
 // Methods
 const numberize = (val) => {
@@ -144,29 +152,73 @@ const displayPrice = computed(() => {
   return p1 > 0 ? p1 : (p2 > 0 ? p2 : 0)
 })
 
-// Debug: log when product changes
-watch(() => props.product, () => {}, { immediate: false, deep: false })
 const handleAddToCart = async () => {
   isLoading.value = true
   try {
     await new Promise(resolve => setTimeout(resolve, 500)) // Simulate API call
-    emit('add-to-cart', props.product.id)
+    emit('add-to-cart', props.product.maSP || props.product.id)
   } finally {
     isLoading.value = false
   }
 }
 
 const handleViewDetail = () => {
-  emit('view-detail', props.product.id)
+  emit('view-detail', props.product.maSP || props.product.id)
 }
 
 const handleAddToWishlist = () => {
-  emit('add-to-wishlist', props.product.id)
+  emit('add-to-wishlist', props.product.maSP || props.product.id)
 }
 
 const handleCardClick = () => {
   handleViewDetail()
 }
+
+// Lấy số lượng tồn khi component được mount
+const loadStockQuantity = async () => {
+  // Thử nhiều field khác nhau để tìm mã sản phẩm
+  const possibleIds = [
+    props.product?.maSP,
+    props.product?.id,
+    props.product?.maSanPham,
+    props.product?.productId,
+    props.product?.code
+  ].filter(Boolean)
+  
+  if (possibleIds.length > 0) {
+    // Thử từng ID cho đến khi tìm thấy stock
+    for (const productId of possibleIds) {
+      try {
+        const stock = await getProductStock(productId, MA_KHO)
+        
+        if (stock !== null && stock !== undefined && stock > 0) {
+          stockQuantity.value = stock
+          stockStatusClass.value = getStockStatusClass.value(`${productId}@${MA_KHO}`)
+          return
+        }
+      } catch (error) {
+        continue
+      }
+    }
+    
+    // Nếu vẫn không tìm thấy
+    stockQuantity.value = 0
+    stockStatusClass.value = 'text-muted'
+  } else {
+    stockQuantity.value = 0
+    stockStatusClass.value = 'text-muted'
+  }
+}
+
+// Watch product changes để cập nhật số lượng tồn
+watch(() => props.product, () => {
+  loadStockQuantity()
+}, { immediate: false, deep: false })
+
+// Load stock quantity khi component mount
+onMounted(() => {
+  loadStockQuantity()
+})
 </script>
 
 <style scoped>

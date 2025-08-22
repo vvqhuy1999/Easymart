@@ -209,7 +209,7 @@
  * - Cập nhật số lượng sản phẩm
  * - Xóa sản phẩm khỏi giỏ hàng  
  * - Tính tổng tiền và phí vận chuyển
- * - Chuyển đến trang thanh toán
+ * - Chuyển đến trang thanh toán (tạo hóa đơn)
  * - Chọn sản phẩm để thanh toán
  */
 
@@ -217,6 +217,7 @@ import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useEasyMart } from '../composables/useEasyMart'
 import { useCart } from '../composables/useCart'
+import { useOrders } from '../composables/useOrders'
 
 // Router
 const router = useRouter()
@@ -231,10 +232,12 @@ const {
   showNotification
 } = useEasyMart()
 
-const { cart, cartCount, removeFromCart, updateCartQuantity } = useCart()
+  const { cart, cartCount, removeFromCart, updateCartQuantity, reloadCartFromBackend, getBackendCartSnapshot } = useCart()
+const { createOrderFromCart } = useOrders()
 
 // Local state for selection
 const selectedItems = ref(new Set())
+const shippingAddress = ref('123 Đường ABC, Quận 1, TP.HCM')
 
 // Computed properties
 const cartItems = computed(() => {
@@ -319,31 +322,190 @@ const confirmRemove = (productId, productName) => {
   }
 }
 
-const checkout = () => {
-  if (selectedItems.value.size === 0) {
-    showNotification('Vui lòng chọn sản phẩm để thanh toán!', 'warning')
-    return
-  }
-  
-  // Check if user is logged in
-  const user = JSON.parse(localStorage.getItem('easymart-user') || 'null')
-  if (!user) {
-    // Save selected items and redirect path
-    const selectedProductIds = Array.from(selectedItems.value)
-    localStorage.setItem('easymart-selected-items', JSON.stringify(selectedProductIds))
-    localStorage.setItem('easymart-redirect-after-login', '/checkout')
+const checkout = async () => {
+  try {
+    if (selectedItems.value.size === 0) {
+      showNotification('Vui lòng chọn sản phẩm để thanh toán!', 'warning')
+      return
+    }
     
-    showNotification('Vui lòng đăng nhập để tiến hành thanh toán!', 'warning')
-    router.push('/login')
+    // Check if user is logged in
+    const user = JSON.parse(localStorage.getItem('easymart-user') || 'null')
+    if (!user) {
+      // Save selected items and redirect path
+      const selectedProductIds = Array.from(selectedItems.value)
+      localStorage.setItem('easymart-selected-items', JSON.stringify(selectedProductIds))
+      localStorage.setItem('easymart-redirect-after-login', '/checkout')
+      
+      showNotification('Vui lòng đăng nhập để tiến hành thanh toán!', 'warning')
+      router.push('/login')
+      return
+    }
+
+  // Ensure we have backend cart data
+  console.log('🧩 Loading cart data before checkout...')
+  await reloadCartFromBackend()
+
+  // Get the actual backend cart items (not computed cartItems)
+  const backendCartItems = cart.value
+  try {
+    console.log('🔍 Backend cart items:', backendCartItems)
+    console.log('🔍 Backend cart items type:', typeof backendCartItems)
+    console.log('🔍 Backend cart items length:', backendCartItems?.length)
+  } catch (error) {
+    console.error('❌ Error logging backend cart items:', error)
+    showNotification('Lỗi khi xử lý dữ liệu giỏ hàng. Vui lòng thử lại.', 'error')
     return
   }
+
+  console.log('🔍 User object from localStorage:', user)
   
-  // Save selected items to localStorage
+  // Declare variables early to avoid reference errors
+  // Get maKH from useCart composable using getBackendCartSnapshot
+  const cartSnapshot = await getBackendCartSnapshot()
+  const maKH = cartSnapshot.maKH || user?.maKH || user?.id || user?.maNguoiDung || localStorage.getItem('easymart-user-id')
+  console.log('🔍 maKH resolved:', maKH)
+  console.log('🔍 cartSnapshot.maKH:', cartSnapshot.maKH)
+  
+  if (!maKH) {
+    showNotification('Không thể xác định mã khách hàng. Vui lòng đăng nhập lại.', 'error')
+    return
+  }
+  const maNV = user?.maNV ||'NV001' // Always use NV001 for now since backend requires it
+  
+  console.log('🔑 User info for checkout:')
+  console.log('   - user object:', user)
+  console.log('   - maKH resolved:', maKH)
+  console.log('   - maNV resolved:', maNV)
+
+  console.log('🔍 selectedItems.value:', selectedItems.value)
   const selectedProductIds = Array.from(selectedItems.value)
-  localStorage.setItem('easymart-selected-items', JSON.stringify(selectedProductIds))
+  console.log('🎯 Selected product IDs:', selectedProductIds)
+
+  // Find backend items that match selected products
+  console.log('🔍 Filtering backend items...')
+  console.log('🔍 backendCartItems:', backendCartItems)
+  console.log('🔍 selectedProductIds:', selectedProductIds)
   
-  // Navigate to checkout page
-  router.push('/checkout')
+  const selectedBackendItems = backendCartItems.filter(backendItem => {
+    console.log('🔍 Checking backendItem:', backendItem)
+    console.log('🔍 backendItem.productId:', backendItem.productId)
+    console.log('🔍 selectedProductIds.includes(backendItem.productId):', selectedProductIds.includes(backendItem.productId))
+    return selectedProductIds.includes(backendItem.productId)
+  })
+  console.log('📦 Selected backend items:', selectedBackendItems)
+  
+  // Debug: Log cấu trúc dữ liệu thực tế từ backend
+  try {
+    console.log('🔍 Backend cart items structure:')
+    backendCartItems.forEach((item, index) => {
+      console.log(`   Item ${index}:`, {
+        keys: Object.keys(item),
+        values: Object.values(item)
+      })
+    })
+    
+    console.log('🔍 Selected backend items structure:')
+    selectedBackendItems.forEach((item, index) => {
+      console.log(`   Selected Item ${index}:`, {
+        keys: Object.keys(item),
+        values: Object.values(item)
+      })
+      console.log(`   Selected Item ${index} details:`, {
+        productId: item.productId,
+        itemId: item.itemId,
+        quantity: item.quantity,
+        price: item.price
+      })
+      console.log(`   Selected Item ${index} original data:`, item.originalData)
+    })
+  } catch (error) {
+    console.error('❌ Error logging cart structure:', error)
+    showNotification('Lỗi khi xử lý cấu trúc giỏ hàng. Vui lòng thử lại.', 'error')
+    return
+  }
+
+  // Kiểm tra ID giỏ hàng - sử dụng itemId từ frontend (đã được transform)
+  const getCartItemId = (item) => {
+    // itemId từ frontend đã được transform từ backend
+    return item.itemId
+  }
+  
+  const missingIds = selectedBackendItems.filter(ci => !getCartItemId(ci))
+  if (missingIds.length > 0) {
+    console.warn('⚠️ Some selected items are missing cart item ID. Items:', missingIds.map(i => i.productId))
+    console.log('🔍 Available fields for missing items:')
+    missingIds.forEach(item => {
+      console.log(`   Product ${item.productId}:`, Object.keys(item))
+    })
+    showNotification('Không thể tạo hóa đơn: một số sản phẩm chưa có ID giỏ hàng. Vui lòng làm mới giỏ hàng và thử lại.', 'error')
+    return
+  }
+
+  // Build selectedCartItemIds từ ID giỏ hàng (theo flow chuẩn)
+  const selectedCartItemIds = selectedBackendItems.map(ci => String(getCartItemId(ci)))
+  console.log('🆔 Selected cart item IDs:', selectedCartItemIds)
+
+  // Calculate totals from selected items
+  const orderPayload = {
+    maKH,
+    maNV: maNV || 'NV001', // Backend yêu cầu maNV không được null
+    selectedCartItemIds,
+    trangThai: 0 // 0 = Chờ thanh toán (có thể cần thiết để tạo HoaDon)
+  }
+
+  // Log payload for verification
+  console.log('🧾 Building invoice payload from cart:')
+  console.log('   - maKH:', orderPayload.maKH)
+  console.log('   - maNV:', orderPayload.maNV)
+  console.log('   - selectedCartItemIds:', orderPayload.selectedCartItemIds)
+  console.log('   - trangThai:', orderPayload.trangThai)
+
+  try {
+    showNotification('Đang tạo hóa đơn từ giỏ...', 'info')
+    console.log('🚀 Calling createOrderFromCart with payload:', orderPayload)
+    const result = await createOrderFromCart(orderPayload)
+
+    // Summarize result
+    console.log('✅ createOrderFromCart result:', result)
+
+    if (result?.success) {
+      showNotification('Tạo hóa đơn thành công!', 'success')
+      
+      // Lưu thông tin hóa đơn để chuyển sang Checkout.vue
+      const invoiceData = {
+        maHD: result.result?.maHD,
+        maKH: result.result?.maKH,
+        items: result.result?.items || [],
+        tongTien: result.result?.tongTien,
+        ngayLap: result.result?.ngayLap,
+        trangThai: result.result?.trangThai
+      }
+      
+      // Lưu vào localStorage để Checkout.vue có thể sử dụng
+      localStorage.setItem('easymart-invoice', JSON.stringify(invoiceData))
+      
+      // Lưu danh sách item đã chọn để Checkout.vue hiển thị
+      localStorage.setItem('easymart-selected-items', JSON.stringify(selectedCartItemIds))
+      
+      // Xóa các item đã chọn khỏi giỏ hàng (sẽ được backend xử lý)
+      console.log('🗑️ Items đã được chuyển sang hóa đơn, backend sẽ xóa khỏi giỏ hàng')
+      
+      setTimeout(() => {
+        // Chuyển đến trang thanh toán
+        router.push('/checkout')
+      }, 1000)
+    } else {
+      showNotification(result?.message || 'Không thể tạo hóa đơn', 'error')
+    }
+  } catch (err) {
+    console.error('❌ Checkout failed:', err)
+    showNotification(err?.message || 'Thanh toán thất bại', 'error')
+  }
+  } catch (error) {
+    console.error('❌ Checkout function error:', error)
+    showNotification('Lỗi không mong muốn trong quá trình thanh toán. Vui lòng thử lại.', 'error')
+  }
 }
 
 // Selection methods

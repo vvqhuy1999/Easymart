@@ -75,7 +75,7 @@ export function useProductDetail(productId) {
     if (!currentProduct.value) return []
     return products.value.filter(p => 
       p.categoryId === currentProduct.value.categoryId && 
-      p.id !== currentProduct.value.id
+      (p.maSP || p.id) !== (currentProduct.value.maSP || currentProduct.value.id)
     ).slice(0, 4)
   })
 
@@ -163,7 +163,10 @@ export function useProductDetail(productId) {
       console.error(`❌ Failed to load product ${id} from API:`, error)
       
       // Fallback: try to find in local products
-      const product = products.value.find(p => p.id === id || p.id === String(id) || p.id === parseInt(id))
+      const product = products.value.find(p => 
+        p.id === id || p.id === String(id) || p.id === parseInt(id) ||
+        p.maSP === id || p.maSP === String(id)
+      )
       
       if (product) {
         currentProduct.value = product
@@ -178,8 +181,8 @@ export function useProductDetail(productId) {
     }
   }
 
-  const changeQuantity = (change) => {
-    const newValue = Math.max(1, Math.min(10, quantity.value + change))
+  const changeQuantity = (change, maxStock = 10) => {
+    const newValue = Math.max(1, Math.min(maxStock, quantity.value + change))
     quantity.value = newValue
   }
 
@@ -189,7 +192,7 @@ export function useProductDetail(productId) {
 
   const addToCartWithQuantity = () => {
     if (currentProduct.value) {
-      addToCart(currentProduct.value.id, quantity.value)
+      addToCart(currentProduct.value.maSP || currentProduct.value.id, quantity.value)
     }
   }
 
@@ -206,7 +209,7 @@ export function useProductDetail(productId) {
       addToCartWithQuantity()
       
       // Save selected items and redirect path
-      localStorage.setItem('easymart-selected-items', JSON.stringify([currentProduct.value.id]))
+      localStorage.setItem('easymart-selected-items', JSON.stringify([currentProduct.value.maSP || currentProduct.value.id]))
       localStorage.setItem('easymart-redirect-after-login', '/checkout')
       
       showNotification('Vui lòng đăng nhập để tiến hành thanh toán!', 'warning')
@@ -222,7 +225,7 @@ export function useProductDetail(productId) {
     addToCartWithQuantity()
     
     // Save selected items to localStorage for checkout
-    localStorage.setItem('easymart-selected-items', JSON.stringify([currentProduct.value.id]))
+    localStorage.setItem('easymart-selected-items', JSON.stringify([currentProduct.value.maSP || currentProduct.value.id]))
     
     // Show notification and redirect
     showNotification('Chuyển đến trang thanh toán...', 'info')

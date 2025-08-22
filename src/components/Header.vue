@@ -125,7 +125,7 @@
           <div class="small text-muted">{{ user?.email }}</div>
         </li>
         <li><router-link to="/profile" class="dropdown-item rounded-2 mx-2 my-1"><i class="fas fa-user me-3 text-primary"></i>Thông tin tài khoản</router-link></li>
-        <li><router-link to="/orders" class="dropdown-item rounded-2 mx-2 my-1"><i class="fas fa-box me-3 text-success"></i>Đơn hàng của tôi</router-link></li>
+        <li><router-link to="/orders" class="dropdown-item rounded-2 mx-2 my-1" @click="showAccountDropdown = false"><i class="fas fa-box me-3 text-success"></i>Đơn hàng của tôi</router-link></li>
         <li><router-link to="/wishlist" class="dropdown-item rounded-2 mx-2 my-1"><i class="fas fa-heart me-3 text-danger"></i>Sản phẩm yêu thích</router-link></li>
         <li><hr class="dropdown-divider"></li>
         <li><a href="#" class="dropdown-item rounded-2 mx-2 my-1 text-danger" @click.prevent="handleLogout"><i class="fas fa-sign-out-alt me-3"></i>Đăng xuất</a></li>

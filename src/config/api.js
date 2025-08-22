@@ -118,7 +118,10 @@ export const API_ENDPOINTS = {
     LIST: '/api/sanpham',
     BY_ID: (id) => `/api/sanpham/${id}`,
     BY_CATEGORY: (categoryId) => `/api/sanpham/category/${categoryId}`,
-    BY_CATEGORY_ACTIVE: (categoryId) => `/api/sanpham/category/${categoryId}/active`
+    BY_CATEGORY_ACTIVE: (categoryId) => `/api/sanpham/category/${categoryId}/active`,
+    // New: products with inventory included (no auth required)
+    WITH_STOCK_LIST: '/api/sanpham/with-tonkho',
+    BY_ID_WITH_STOCK: (id) => `/api/sanpham/${id}/with-tonkho`
   },
   
   // Cart (GioHang) - Updated API endpoints theo hướng dẫn mới
@@ -146,6 +149,18 @@ export const API_ENDPOINTS = {
     // Xóa 1 item
     REMOVE: (itemId) => `/api/giohang/items/${itemId}`
   },
+
+  // HoaDon (Hóa đơn) - API endpoints cho thanh toán (thay thế DonHang)
+  HOADON: {
+    // Tạo hóa đơn từ giỏ hàng
+    CREATE_FROM_CART: '/api/hoadon/from-cart',
+    // Lấy hóa đơn theo khách hàng
+    BY_CUSTOMER: (maKH) => `/api/hoadon/by-khachhang/${maKH}`,
+    // Lấy hóa đơn theo ID
+    BY_ID: (maHD) => `/api/hoadon/${maHD}`,
+    // Cập nhật trạng thái hóa đơn
+    UPDATE_STATUS: (maHD) => `/api/hoadon/${maHD}/trangthai`
+  },
   
   // Images
   IMAGES: {
@@ -156,6 +171,20 @@ export const API_ENDPOINTS = {
       `/api/upload/serve-image/${productId}_main1.jfif`,
       `/api/upload/serve-image/${productId}_main2.jfif`
     ]
+  },
+  
+  // Inventory (Tồn kho) - API endpoints cho số lượng tồn
+  INVENTORY: {
+    // Lấy tất cả tồn kho chi tiết
+    ALL_DETAILS: '/api/tonkhochitiet',
+    // Lấy tồn kho chi tiết theo ID
+    BY_ID: (id) => `/api/tonkhochitiet/${id}`,
+    // Lấy tồn kho theo sản phẩm
+    BY_PRODUCT: (productId) => `/api/tonkhochitiet/product/${productId}`,
+    // Lấy tồn kho theo kho
+    BY_WAREHOUSE: (warehouseId) => `/api/tonkhochitiet/warehouse/${warehouseId}`,
+    // So sánh maSP giữa bảng SanPham và TonKhoChiTiet (active)
+    COMPARE_MASP: '/api/tonkhochitiet/compare-masp'
   }
 }
 

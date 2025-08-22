@@ -131,10 +131,13 @@
               <div class="row">
                 <div class="col-6">
                   <div class="text-center">
-                    <i class="fas fa-check-circle text-success fs-4"></i>
+                                          <i :class="[stockStatusIcon, stockStatusIconClass]"></i>
                     <div class="mt-2">
-                      <strong class="text-success">Còn hàng</strong>
-                      <div class="small text-muted">Còn {{ Math.floor(Math.random() * 50) + 20 }} sản phẩm</div>
+                      <strong :class="stockStatusClass">{{ stockStatusText }}</strong>
+                      <div class="small text-muted">
+                        <span v-if="stockQuantity !== null">Còn {{ stockQuantity }} sản phẩm</span>
+                        <span v-else>Đang kiểm tra...</span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -154,29 +157,32 @@
               <div class="col-md-4">
                 <label class="form-label fw-semibold">Số lượng:</label>
                 <div class="quantity-selector d-flex">
-                  <button class="quantity-btn" @click="changeQuantity(-1)">
+                  <button class="quantity-btn" @click="changeQuantity(-1, stockQuantity)" :disabled="stockQuantity === 0">
                     <i class="fas fa-minus"></i>
                   </button>
                   <input 
                     type="number" 
                     class="form-control quantity-input" 
                     v-model="quantity" 
-                    min="1" 
-                    max="10"
+                    :min="1" 
+                    :max="stockQuantity || 10"
+                    :disabled="stockQuantity === 0"
                   >
-                  <button class="quantity-btn" @click="changeQuantity(1)">
+                  <button class="quantity-btn" @click="changeQuantity(1, stockQuantity)" :disabled="stockQuantity === 0">
                     <i class="fas fa-plus"></i>
                   </button>
                 </div>
+                <small v-if="stockQuantity === 0" class="text-danger">Sản phẩm đã hết hàng</small>
+                <small v-else-if="stockQuantity !== null" class="text-muted">Còn {{ stockQuantity }} sản phẩm</small>
               </div>
               <div class="col-md-8">
                 <label class="form-label fw-semibold">Hành động:</label>
                 <div class="d-flex gap-2">
-                  <button class="btn add-to-cart-btn text-white flex-fill" @click="addToCartWithQuantity">
-                    <i class="fas fa-cart-plus me-2"></i>Thêm vào giỏ
+                  <button class="btn add-to-cart-btn text-white flex-fill" @click="addToCartWithQuantity" :disabled="stockQuantity === 0">
+                    <i class="fas fa-cart-plus me-2"></i>{{ stockQuantity === 0 ? 'Hết hàng' : 'Thêm vào giỏ' }}
                   </button>
-                  <button class="btn buy-now-btn text-white flex-fill" @click="buyNow">
-                    <i class="fas fa-bolt me-2"></i>Mua ngay
+                  <button class="btn buy-now-btn text-white flex-fill" @click="buyNow" :disabled="stockQuantity === 0">
+                    <i class="fas fa-bolt me-2"></i>{{ stockQuantity === 0 ? 'Hết hàng' : 'Mua ngay' }}
                   </button>
                 </div>
               </div>
@@ -367,6 +373,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 // Composables và Components
 import { useEasyMart } from '../composables/useEasyMart'
 import { useProductDetail } from '../composables/useProductDetail'
+import { useInventory } from '../composables/useInventory'
 import './ProductCard.vue'
 import '../assets/styles.css'
 
@@ -424,6 +431,30 @@ const {
   setActiveTab
 } = useProductDetail(props.productId)
 
+// Sử dụng useInventory composable để lấy thông tin tồn kho
+const {
+  getProductStock,
+  getStockStatus,
+  getStockStatusClass,
+  getStockStatusIcon
+} = useInventory()
+
+// Single store: fixed warehouse
+const MA_KHO = 1
+
+// Cache key for stock helpers
+const stockCacheKey = computed(() => {
+  const pid = currentProduct.value?.maSP || currentProduct.value?.id
+  return pid ? `${pid}@${MA_KHO}` : null
+})
+
+// Reactive data cho tồn kho
+const stockQuantity = ref(null)
+const stockStatusText = ref('Đang kiểm tra...')
+const stockStatusClass = ref('text-muted')
+const stockStatusIcon = ref('fas fa-spinner fa-spin')
+const stockStatusIconClass = ref('text-muted')
+
 // ==================== COMPUTED PROPERTIES ====================
 /**
  * Mô tả sản phẩm (fallback nếu không có)
@@ -449,6 +480,33 @@ const handleNewReview = (newReview) => {
   showNotification('Cảm ơn bạn đã đánh giá sản phẩm!', 'success')
 }
 
+/**
+ * Load thông tin tồn kho của sản phẩm
+ */
+const loadStockInfo = async () => {
+  const productId = currentProduct.value?.maSP || currentProduct.value?.id
+  if (!productId) return
+  
+  try {
+    const stock = await getProductStock(productId, MA_KHO)
+    stockQuantity.value = stock
+
+    // Cập nhật trạng thái từ helpers theo cache key
+    if (stockCacheKey.value) {
+      stockStatusText.value = getStockStatus.value(stockCacheKey.value)
+      stockStatusClass.value = getStockStatusClass.value(stockCacheKey.value)
+      stockStatusIcon.value = getStockStatusIcon.value(stockCacheKey.value)
+      stockStatusIconClass.value = stockStatusClass.value
+    }
+  } catch (error) {
+    console.error('Error loading stock info:', error)
+    stockStatusText.value = 'Không xác định'
+    stockStatusClass.value = 'text-muted'
+    stockStatusIcon.value = 'fas fa-question-circle'
+    stockStatusIconClass.value = 'text-muted'
+  }
+}
+
 // Watch cho props.productId để load sản phẩm mới khi route thay đổi
 watch(() => props.productId, async (newId) => {
   console.log('🔄 ProductDetail - ProductId changed to:', newId)
@@ -456,6 +514,8 @@ watch(() => props.productId, async (newId) => {
   if (newId) {
     await loadProduct(newId)
     console.log('🔄 ProductDetail - currentProduct after load:', currentProduct.value)
+    // Load thông tin tồn kho sau khi load sản phẩm
+    await loadStockInfo()
   }
 }, { immediate: true })
 
@@ -464,6 +524,13 @@ watch(currentReviews, (newReviews) => {
   console.log('🔄 ProductDetail - currentReviews changed:', newReviews)
   console.log('🔄 ProductDetail - currentReviews length:', newReviews?.length || 0)
 }, { immediate: true })
+
+// Watch cho currentProduct để load thông tin tồn kho khi sản phẩm thay đổi
+watch(currentProduct, async (newProduct) => {
+  if (newProduct?.maSP || newProduct?.id) {
+    await loadStockInfo()
+  }
+}, { immediate: false, deep: false })
 
 // Watch cho activeTab để kiểm tra khi nào tab thay đổi
 watch(activeTab, (newTab) => {
@@ -478,6 +545,8 @@ onMounted(async () => {
   if (props.productId) {
     await loadProduct(props.productId)
     console.log('🚀 ProductDetail - currentProduct after mount load:', currentProduct.value)
+    // Load thông tin tồn kho sau khi load sản phẩm
+    await loadStockInfo()
   }
 })
 

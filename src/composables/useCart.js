@@ -218,12 +218,15 @@ const pullBackendItems = async (maKH) => {
     
     // API mới không có isDeleted, items đã được lọc sẵn
     // Map với đầy đủ thông tin để có thể xóa/cập nhật sau này
+    // Quan trọng: Giữ nguyên ID gốc từ backend để tạo hóa đơn
     return items.map(it => ({
       productId: (it.sanPham?.maSP) || it.maSP || it.productId,
       quantity: it.soLuong || it.quantity || 1,
-      itemId: it.itemId || it.id, // API mới sử dụng itemId thay vì maCTGH
+      itemId: it.maGHCT || it.maGioHangChiTiet || it.maCTGH || it.id || it.itemId, // Giữ nguyên ID gốc từ backend
       price: it.donGiaHienTai || 0,
-      product: it.sanPham || it.product || null // Lưu product data nếu có
+      product: it.sanPham || it.product || null, // Lưu product data nếu có
+      // Giữ nguyên dữ liệu gốc để debug
+      originalData: it
     }))
   } catch (error) {
     console.error('[CART][PULL_ITEMS][EXCEPTION]', error)
@@ -363,10 +366,9 @@ const persistLocalToBackend = async () => {
       const existing = serverMap.get(String(it.productId))
       if (existing && existing.maCTGH) {
         const newQty = (existing.quantity || existing.soLuong || 0) + (it.quantity || 1)
-        await fetch(`${API_CONFIG.BASE_URL}${API_ENDPOINTS.CART_ITEMS.UPDATE_QTY(existing.maCTGH)}`, {
+        await fetch(`${API_CONFIG.BASE_URL}${API_ENDPOINTS.CART_ITEMS.UPDATE_QTY(existing.maCTGH)}?value=${encodeURIComponent(newQty)}`, {
           method: 'PUT',
-          headers: getAuthHeaders(),
-          body: JSON.stringify({ soLuong: newQty })
+          headers: getAuthHeaders()
         })
       } else {
         const url = `${API_CONFIG.BASE_URL}${API_ENDPOINTS.CART_ITEMS.ADD}`

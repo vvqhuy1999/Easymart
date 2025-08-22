@@ -142,6 +142,15 @@ const routes = [
     }
   },
   {
+    path: '/orders',
+    name: 'Orders',
+    component: () => import('../views/Orders.vue'),
+    meta: {
+      title: 'Đơn hàng của tôi - EasyMart',
+      description: 'Xem và quản lý tất cả đơn hàng của bạn tại EasyMart'
+    }
+  },
+  {
     path: '/oauth2/success',
     name: 'OAuth2Success',
     component: () => import('../views/OAuth2Success.vue'),
@@ -187,7 +196,7 @@ router.beforeEach((to, from, next) => {
   }
   
   // Check authentication for protected routes
-  const protectedRoutes = ['Checkout', 'PaymentSuccess']
+  const protectedRoutes = ['Checkout', 'PaymentSuccess', 'Orders', 'Profile']
   if (protectedRoutes.includes(to.name)) {
     const user = JSON.parse(localStorage.getItem('easymart-user') || 'null')
     if (!user) {
