@@ -55,16 +55,41 @@ const resolveCustomerId = async () => {
       if (maKH) return maKH
     }
   } catch {}
+  
   if (!user.value) return null
+  
   if (user.value?.customerInfo?.maKH) {
     try { console.log('[CART][RESOLVE_KH] source=customerInfo maKH=', user.value.customerInfo.maKH) } catch {}
     return user.value.customerInfo.maKH
   }
+  
+  // Thử lấy thông tin user đầy đủ
   const completeUser = await ensureUserComplete().catch(() => user.value)
   if (!completeUser?.customerInfo?.maKH) {
-    try { await validateProfileAccess() } catch {}
+    try { 
+      console.log('[CART][RESOLVE_KH] Trying to validate profile access...')
+      await validateProfileAccess() 
+    } catch (err) {
+      console.warn('[CART][RESOLVE_KH] Profile validation failed:', err.message)
+    }
   }
-  const maKH = user.value?.customerInfo?.maKH || null
+  
+  let maKH = user.value?.customerInfo?.maKH || null
+  
+  // Nếu vẫn không có maKH, thử tạo thông tin khách hàng mới
+  if (!maKH && user.value?.email) {
+    try {
+      console.log('[CART][RESOLVE_KH] No maKH found, attempting to create customer info...')
+      maKH = await createCustomerInfoForUser()
+      if (maKH) {
+        console.log('[CART][RESOLVE_KH] Successfully created customer info with maKH:', maKH)
+        return maKH
+      }
+    } catch (err) {
+      console.error('[CART][RESOLVE_KH] Failed to create customer info:', err.message)
+    }
+  }
+  
   try { console.log('[CART][RESOLVE_KH] userId=', completeUser?.id, 'maKH=', maKH) } catch {}
   return maKH
 }
@@ -531,6 +556,94 @@ const testCartAPIConnection = async () => {
   } catch (error) {
     console.error('❌ [CART][TEST] General exception:', error)
     return { success: false, error: error.message }
+  }
+}
+
+// ========================= CUSTOMER CREATION =========================
+
+// Tự động tạo thông tin khách hàng cho user mới
+const createCustomerInfoForUser = async () => {
+  try {
+    if (!user.value?.email) {
+      console.log('[CART][CREATE_CUSTOMER] No email available for user')
+      return null
+    }
+    
+    console.log('[CART][CREATE_CUSTOMER] Creating customer info for:', user.value.email)
+    
+    // Bước 1: Lấy maNguoiDung từ email
+    const token = getToken()
+    const userResponse = await fetch(`${API_CONFIG.BASE_URL}/api/nguoidung/email/${encodeURIComponent(user.value.email)}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    })
+    
+    if (!userResponse.ok) {
+      console.error('[CART][CREATE_CUSTOMER] Failed to get user info:', userResponse.status)
+      return null
+    }
+    
+    const userInfo = await userResponse.json()
+    const maNguoiDung = userInfo.maNguoiDung
+    
+    if (!maNguoiDung) {
+      console.error('[CART][CREATE_CUSTOMER] No maNguoiDung found in user info')
+      return null
+    }
+    
+    console.log('[CART][CREATE_CUSTOMER] Got maNguoiDung:', maNguoiDung)
+    
+    // Bước 2: Tạo thông tin khách hàng mới
+    const customerData = {
+      nguoiDung: { maNguoiDung: maNguoiDung },
+      hoTen: user.value.name || user.value.email.split('@')[0],
+      soDienThoai: user.value.phone || '',
+      diaChi: user.value.address || '',
+      ngaySinh: user.value.birthDate || null,
+      ngayTao: new Date().toISOString()
+    }
+    
+    console.log('[CART][CREATE_CUSTOMER] Creating customer with data:', customerData)
+    
+    const customerResponse = await fetch(`${API_CONFIG.BASE_URL}/api/khachhang`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(customerData)
+    })
+    
+    if (!customerResponse.ok) {
+      const errorData = await customerResponse.json().catch(() => ({}))
+      console.error('[CART][CREATE_CUSTOMER] Failed to create customer:', customerResponse.status, errorData)
+      return null
+    }
+    
+    const newCustomer = await customerResponse.json()
+    const maKH = newCustomer.maKH || newCustomer.maKH
+    
+    if (maKH) {
+      console.log('[CART][CREATE_CUSTOMER] Successfully created customer with maKH:', maKH)
+      
+      // Cập nhật user state với thông tin mới
+      if (user.value) {
+        user.value.customerInfo = { ...user.value.customerInfo, maKH }
+        user.value.maKH = maKH
+      }
+      
+      return maKH
+    } else {
+      console.error('[CART][CREATE_CUSTOMER] No maKH in response:', newCustomer)
+      return null
+    }
+    
+  } catch (error) {
+    console.error('[CART][CREATE_CUSTOMER] Exception:', error)
+    return null
   }
 }
 
@@ -1161,6 +1274,7 @@ export function useCart() {
     syncItemIdsFromBackend,
     checkoutCart,
     cancelCart,
+    createCustomerInfoForUser,
     
     // Sync helpers
     mergeWithBackendOnLogin,

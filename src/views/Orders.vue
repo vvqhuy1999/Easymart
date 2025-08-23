@@ -104,6 +104,8 @@
     <div v-else-if="orders.length > 0" class="container">
       <div class="row">
         <div class="col-12">
+
+          
           <!-- Tab Content Info -->
           <div class="tab-info mb-3">
             <div class="alert alert-info d-flex align-items-center">
@@ -312,6 +314,8 @@
     <div v-else class="container">
       <div class="row justify-content-center">
         <div class="col-md-8 text-center">
+
+          
           <div class="empty-state">
             <i class="fas fa-box-open fa-4x text-muted mb-4"></i>
             <h3 class="text-muted">Chưa có đơn hàng nào</h3>
@@ -337,6 +341,26 @@ import { useCart } from '../composables/useCart'
 import { API_CONFIG, API_ENDPOINTS } from '../config/api.js'
 import { getToken } from '../utils/tokenStorage.js'
 
+// ==================== UTILITY FUNCTIONS ====================
+// Decode JWT token to get user info
+const decodeToken = (token) => {
+  try {
+    if (!token) return null
+    const payload = JSON.parse(atob(token.split('.')[1]))
+    return {
+      email: payload.sub, // sub chính là email
+      issuer: payload.iss,
+      role: payload.role,
+      exp: payload.exp,
+      iat: payload.iat,
+      raw: payload
+    }
+  } catch (error) {
+    console.error('Error decoding token:', error)
+    return null
+  }
+}
+
 // ==================== COMPOSABLES ====================
 const router = useRouter()
 
@@ -361,6 +385,14 @@ try {
   error = ordersResult.error
   loadCustomerOrders = ordersResult.loadCustomerOrders
   cancelOrder = ordersResult.cancelOrder
+  
+  // Debug: Kiểm tra xem orders có được khởi tạo đúng không
+  console.log('🔍 useOrders initialized successfully:')
+  console.log('   - orders:', orders)
+  console.log('   - orders.value:', orders?.value)
+  console.log('   - loading:', loading)
+  console.log('   - error:', error)
+  
 } catch (err) {
   console.error('❌ useOrders failed:', err)
   // Fallback values
@@ -465,82 +497,71 @@ const extractMaKH = (data, source) => {
  */
 const getMaKHFromAPI = async () => {
   try {
-    const userData = JSON.parse(localStorage.getItem('easymart-user'))
-    if (!userData) {
+    console.log('🔍 === GETTING MAKH FROM API ===')
+    
+    // Sử dụng cùng cách như cart để lấy thông tin user đầy đủ
+    const token = getToken()
+    if (!token) {
+      console.log('❌ No token available')
       return null
     }
     
-    // ƯU TIÊN 1: Thử tìm maKH từ email
-    if (userData?.email) {
-      
-      try {
-        const token = getToken()
-        const response = await fetch(`${API_CONFIG.BASE_URL}/api/khachhang/by-email/${encodeURIComponent(userData.email)}`, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          credentials: 'include'
-        })
-        
-        if (response.ok) {
-          const customerData = await response.json()
-          const maKH = extractMaKH(customerData, 'email')
-          if (maKH) return maKH
-        }
-      } catch (emailErr) {
-        // Email lookup failed, continue to next method
-      }
+    // Bước 1: Lấy thông tin user từ token (decode JWT)
+    const tokenData = decodeToken(token)
+    if (!tokenData?.email) {
+      console.log('❌ No email found in token')
+      return null
     }
     
-    // ƯU TIÊN 2: Thử tìm từ user ID
-    const userId = userData?.id || userData?.sub || userData?.maNguoiDung
+    const userEmail = tokenData.email
+    console.log('📧 User email from token:', userEmail)
     
-    if (userId && userId !== 'OAUTH_USER') {
-      try {
-        const token = getToken()
-        const response = await fetch(`${API_CONFIG.BASE_URL}/api/khachhang/by-nguoidung/${userId}`, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          credentials: 'include'
-        })
-        
-        if (response.ok) {
-          const customerData = await response.json()
-          const maKH = extractMaKH(customerData, 'User ID API')
-          if (maKH) return maKH
-        }
-      } catch (userIdErr) {
-        // User ID lookup failed, continue to next method
-      }
+    // Bước 2: Lấy maNguoiDung từ email API
+    console.log('👤 Step 1: Getting maNguoiDung from email API...')
+    const userResponse = await fetch(`${API_CONFIG.BASE_URL}/api/nguoidung/email/${encodeURIComponent(userEmail)}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      credentials: 'include'
+    })
+    
+    if (!userResponse.ok) {
+      console.log('⚠️ User email API failed with status:', userResponse.status)
+      return null
     }
     
-    // ƯU TIÊN 3: Thử tìm từ current user endpoint (chỉ khi cần thiết)
-    // Bỏ qua nếu endpoint này bị lỗi 500
-    try {
-      const token = getToken()
-      const response = await fetch(`${API_CONFIG.BASE_URL}/api/khachhang/current`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        credentials: 'include'
-      })
-      
-      if (response.ok) {
-        const customerData = await response.json()
-        const maKH = extractMaKH(customerData, 'current endpoint')
-        if (maKH) return maKH
-      }
-    } catch (currentErr) {
-      // Current endpoint failed, no maKH found
+    const userInfo = await userResponse.json()
+    const realUserId = userInfo.maNguoiDung
+    console.log('✅ Got real maNguoiDung:', realUserId)
+    
+    // Bước 3: Sử dụng maNguoiDung để lấy customer info
+    console.log('👤 Step 2: Getting customer info with maNguoiDung...')
+    const customerResponse = await fetch(`${API_CONFIG.BASE_URL}/api/khachhang/by-nguoidung/${realUserId}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      credentials: 'include'
+    })
+    
+    if (!customerResponse.ok) {
+      console.log('⚠️ Customer API failed with status:', customerResponse.status)
+      return null
     }
     
+    const customerData = await customerResponse.json()
+    console.log('✅ Customer data from API:', customerData)
+    
+    const maKH = extractMaKH(customerData, 'Customer API')
+    if (maKH) {
+      console.log('✅ Found maKH from API:', maKH)
+      return maKH
+    }
+    
+    console.log('❌ No maKH found in customer data')
     return null
     
   } catch (err) {
@@ -554,16 +575,39 @@ const getMaKHFromAPI = async () => {
  */
 const loadOrders = async () => {
   try {
-    // Tìm maKH từ các nguồn khác nhau
+    console.log('🔄 === LOADING ORDERS ===')
+    console.log('🔄 Current orders state:', orders?.value)
+    console.log('🔄 Current loading state:', loading?.value)
+    
+    // Tìm maKH từ các nguồn khác nhau - ưu tiên cart vì nó đang hoạt động
     let maKH = cart?.maKH || 
                 currentUser.value?.maKH || 
                 currentUser.value?.khachHang?.maKH
     
-    if (!maKH) {
-      // Thử lấy maKH từ API
+    console.log('🔑 Found maKH from sources:', {
+      cart: cart?.maKH,
+      currentUser: currentUser.value?.maKH,
+      currentUserKhachHang: currentUser.value?.khachHang?.maKH,
+      final: maKH
+    })
+    
+    // Nếu cart đã có maKH thì sử dụng luôn (cart đang hoạt động tốt)
+    if (cart?.maKH) {
+      maKH = cart.maKH
+      console.log('✅ Using maKH from cart (most reliable):', maKH)
+      
+      // Cập nhật currentUser với thông tin từ cart
+      if (currentUser.value) {
+        currentUser.value.maKH = maKH
+        currentUser.value.khachHang = { maKH: maKH }
+      }
+    } else if (!maKH) {
+      // Chỉ thử API nếu cart không có maKH
+      console.log('🔍 No maKH found from cart, trying API...')
       const realMaKH = await getMaKHFromAPI()
       if (realMaKH) {
         maKH = realMaKH
+        console.log('✅ Got maKH from API:', maKH)
         
         // Cập nhật currentUser với thông tin customer
         if (currentUser.value) {
@@ -572,13 +616,19 @@ const loadOrders = async () => {
         }
       } else {
         // Không tìm thấy maKH, không thể load orders
+        console.log('❌ No maKH found from any source')
         error.value = 'Không thể xác định thông tin khách hàng. Vui lòng đăng nhập lại hoặc cập nhật thông tin cá nhân trong trang Profile.'
         return
       }
     }
     
+    console.log('🚀 Calling loadCustomerOrders with maKH:', maKH)
     // loadCustomerOrders sẽ tự động cập nhật orders state
-    await loadCustomerOrders(maKH)
+    const result = await loadCustomerOrders(maKH)
+    console.log('✅ loadCustomerOrders completed:', result)
+    console.log('📊 Orders after loading:', orders?.value)
+    console.log('📊 Orders length:', orders?.value?.length)
+    
   } catch (err) {
     console.error('❌ Error loading orders:', err)
     error.value = err.message || 'Có lỗi xảy ra khi tải danh sách đơn hàng'
@@ -926,10 +976,14 @@ const checkUserLoginStatus = () => {
 // ==================== LIFECYCLE HOOKS ====================
 onMounted(async () => {
   try {
+    console.log('🚀 === ORDERS PAGE MOUNTED ===')
+    
     // Kiểm tra user có đăng nhập thực sự không
     const isLoggedIn = checkUserLoginStatus()
+    console.log('🔐 User login status:', isLoggedIn)
     
     if (!isLoggedIn) {
+      console.log('❌ User not logged in, redirecting to login')
       router.push('/login')
       return
     }
@@ -937,23 +991,54 @@ onMounted(async () => {
     // Lấy thông tin user từ localStorage
     const userData = JSON.parse(localStorage.getItem('easymart-user') || 'null')
     if (!userData) {
+      console.log('❌ No user data in localStorage, redirecting to login')
       router.push('/login')
       return
     }
     
+    console.log('📦 User data loaded:', userData)
+    
+    // Bổ sung thông tin email từ token để hiển thị đầy đủ
+    const token = getToken()
+    if (token) {
+      const tokenData = decodeToken(token)
+      if (tokenData?.email) {
+        userData.email = tokenData.email
+        console.log('📧 Added email from token:', tokenData.email)
+      }
+    }
+    
     currentUser.value = userData
     
-    // Thử refresh customer info trước khi load orders
-    const customerRefreshed = await refreshCustomerInfo()
+    // Kiểm tra xem đã có maKH chưa
+    const existingMaKH = userData.maKH || userData.customerInfo?.maKH
+    console.log('🔑 Existing maKH from user data:', existingMaKH)
     
-    if (!customerRefreshed) {
-      // Load orders
+    if (existingMaKH) {
+      console.log('✅ maKH already available, loading orders directly')
       await loadOrders()
+    } else {
+      console.log('🔍 No maKH found, trying to get from API...')
+      // Thử lấy maKH từ API trước
+      const maKH = await getMaKHFromAPI()
+      if (maKH) {
+        console.log('✅ Got maKH from API, updating user data and loading orders')
+        // Cập nhật currentUser
+        currentUser.value.maKH = maKH
+        currentUser.value.khachHang = { maKH: maKH }
+        
+        // Load orders
+        await loadOrders()
+      } else {
+        console.log('❌ Could not get maKH from API, showing error')
+        error.value = 'Không thể xác định thông tin khách hàng. Vui lòng đăng nhập lại hoặc cập nhật thông tin cá nhân trong trang Profile.'
+      }
     }
     
     // Tự động refresh orders mỗi 30 giây
     const refreshInterval = setInterval(async () => {
       try {
+        console.log('🔄 Auto-refreshing orders...')
         await loadOrders()
       } catch (err) {
         console.warn('⚠️ Auto-refresh failed:', err.message)
@@ -961,20 +1046,24 @@ onMounted(async () => {
     }, 30000)
     
     // Cleanup interval khi component bị unmount
-    // Đặt onUnmounted ở ngoài async function để tránh warning
     const cleanup = () => {
       if (refreshInterval) {
         clearInterval(refreshInterval)
       }
     }
     
-    // Đăng ký cleanup function
+    // Đăng ký cleanup function - đặt bên ngoài async function
     onUnmounted(cleanup)
     
   } catch (err) {
     console.error('❌ Error in onMounted:', err)
     error.value = 'Có lỗi xảy ra khi khởi tạo trang. Vui lòng thử lại.'
   }
+})
+
+// Cleanup function được đặt bên ngoài để tránh lỗi onUnmounted
+onUnmounted(() => {
+  console.log('🧹 Orders page unmounted, cleaning up...')
 })
 </script>
 

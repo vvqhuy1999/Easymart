@@ -822,67 +822,58 @@ const validateProfileAccess = async () => {
     
     // Nếu không tìm thấy endpoint nào hoạt động
     if (!customerData) {
-      console.log('⚠️ No working customer endpoint found, creating basic data')
+      console.log('⚠️ No working customer endpoint found, attempting to create customer record...')
       
-      // Kiểm tra nếu là Google OAuth2 user để tạo dữ liệu phù hợp
-      const isGoogleUser = username.includes('@gmail.com') || username.includes('@fpt.edu.vn')
-      
-      if (isGoogleUser) {
-        console.log('🔍 Fallback: Creating OAuth2 user data structure')
+      // Thử tạo thông tin khách hàng mới trong database
+      try {
+        console.log('🔧 Creating new customer record for user:', username)
         
-        // Thử gọi API /api/nguoidung một lần nữa trong fallback
-        try {
-          console.log('🔄 Fallback: Thử gọi /api/nguoidung một lần nữa...')
-          const fallbackResponse = await fetch(`${API_CONFIG.BASE_URL}/api/nguoidung/${maNguoiDung}`, {
-            method: 'GET',
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json'
-            }
-          })
+        const newCustomerData = {
+          nguoiDung: { maNguoiDung: maNguoiDung },
+          hoTen: username.split('@')[0],
+          soDienThoai: '',
+          diaChi: '',
+          ngaySinh: null,
+          ngayTao: new Date().toISOString()
+        }
+        
+        console.log('📤 Creating customer with data:', newCustomerData)
+        
+        const createResponse = await fetch(`${API_CONFIG.BASE_URL}/api/khachhang`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(newCustomerData)
+        })
+        
+        if (createResponse.ok) {
+          const newCustomer = await createResponse.json()
+          console.log('✅ Successfully created customer record:', newCustomer)
           
-          if (fallbackResponse.ok) {
-            const fallbackInfo = await fallbackResponse.json()
-            console.log('✅ Fallback: Customer info từ /api/nguoidung')
-            
-            // Xử lý dữ liệu tương tự như trên
-            let phoneData = fallbackInfo.soDienThoai || fallbackInfo.sdt || fallbackInfo.phone || fallbackInfo.dienThoai || ''
-            let addressData = fallbackInfo.diaChi || fallbackInfo.address || fallbackInfo.diaChiChiTiet || ''
-            
-            customerData = {
-              hoTen: fallbackInfo.tenNguoiDung || fallbackInfo.hoTen || username.split('@')[0],
-              soDienThoai: phoneData,
-              ngaySinh: fallbackInfo.ngaySinh || null,
-              diaChi: addressData,
-              ngayTao: fallbackInfo.ngayTao || fallbackInfo.ngayDangKy || new Date().toISOString().split('T')[0],
-              tongDonHang: 0,
-              tongChiTieu: 0,
-              // Thông tin cho Google OAuth2 user
-              maKH: fallbackInfo.maNguoiDung || fallbackInfo.maKH || maNguoiDung,
-              diemTichLuy: 0,
-              loaiKhachHang: 'OAuth2 User',
-              sdt: phoneData
-            }
-          } else {
-            console.log('❌ Fallback: Không thể lấy customer info từ /api/nguoidung')
-            // Tạo dữ liệu cơ bản
-            customerData = {
-              hoTen: username.split('@')[0],
-              soDienThoai: '',
-              ngayTao: new Date().toISOString().split('T')[0],
-              tongDonHang: 0,
-              tongChiTieu: 0,
-              diaChi: '',
-              // Thông tin cho Google OAuth2 user
-              maKH: maNguoiDung,
-              diemTichLuy: 0,
-              loaiKhachHang: 'OAuth2 User',
-              sdt: ''
-            }
+          // Sử dụng thông tin từ customer mới tạo
+          customerData = {
+            hoTen: newCustomer.hoTen || username.split('@')[0],
+            soDienThoai: newCustomer.soDienThoai || '',
+            ngaySinh: newCustomer.ngaySinh || null,
+            diaChi: newCustomer.diaChi || '',
+            ngayTao: newCustomer.ngayTao || new Date().toISOString().split('T')[0],
+            tongDonHang: 0,
+            tongChiTieu: 0,
+            maKH: newCustomer.maKH,
+            diemTichLuy: 0,
+            loaiKhachHang: 'New User',
+            sdt: newCustomer.soDienThoai || ''
           }
-        } catch (fallbackError) {
-          console.log('❌ Fallback: Lỗi khi gọi /api/nguoidung:', fallbackError.message)
-          // Tạo dữ liệu cơ bản
+          
+          console.log('✅ Using newly created customer data:', customerData)
+        } else {
+          const errorData = await createResponse.json().catch(() => ({}))
+          console.error('❌ Failed to create customer record:', createResponse.status, errorData)
+          
+          // Fallback: Tạo dữ liệu cơ bản trong memory
+          console.log('🔄 Fallback: Creating basic data in memory')
           customerData = {
             hoTen: username.split('@')[0],
             soDienThoai: '',
@@ -890,21 +881,28 @@ const validateProfileAccess = async () => {
             tongDonHang: 0,
             tongChiTieu: 0,
             diaChi: '',
-            // Thông tin cho Google OAuth2 user
-            maKH: maNguoiDung,
+            maKH: maNguoiDung, // Sử dụng maNguoiDung làm maKH tạm thời
             diemTichLuy: 0,
-            loaiKhachHang: 'OAuth2 User',
+            loaiKhachHang: 'Fallback User',
             sdt: ''
           }
         }
-      } else {
+      } catch (createError) {
+        console.error('❌ Error creating customer record:', createError.message)
+        
+        // Fallback: Tạo dữ liệu cơ bản trong memory
+        console.log('🔄 Fallback: Creating basic data in memory due to error')
         customerData = {
           hoTen: username.split('@')[0],
           soDienThoai: '',
           ngayTao: new Date().toISOString().split('T')[0],
           tongDonHang: 0,
           tongChiTieu: 0,
-          diaChi: ''
+          diaChi: '',
+          maKH: maNguoiDung, // Sử dụng maNguoiDung làm maKH tạm thời
+          diemTichLuy: 0,
+          loaiKhachHang: 'Error Fallback User',
+          sdt: ''
         }
       }
     }
@@ -1090,7 +1088,7 @@ const login = async (email, password) => {
         
         // For traditional login, we need to get user info separately or create basic user data
         const userData = {
-          id: 'USER_' + Date.now(), // Will be updated when we get user info
+          id: null, // Will be set to real user ID from backend
           name: email.split('@')[0], // Basic name from email
           email: email,
           phone: '',
@@ -1100,6 +1098,31 @@ const login = async (email, password) => {
           totalSpent: 0,
           role: 'USER',
           loginMethod: 'traditional'
+        }
+        
+        // Try to get real user info from backend first
+        try {
+          const token = result.token
+          if (token) {
+            // Try to get user info from backend
+            const userInfoResponse = await fetch(`${API_CONFIG.BASE_URL}/api/nguoidung/email/${encodeURIComponent(email)}`, {
+              method: 'GET',
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+              }
+            })
+            
+            if (userInfoResponse.ok) {
+              const userInfo = await userInfoResponse.json()
+              if (userInfo.id || userInfo.maNguoiDung) {
+                userData.id = userInfo.id || userInfo.maNguoiDung
+                console.log('✅ Got real user ID from backend:', userData.id)
+              }
+            }
+          }
+        } catch (userInfoError) {
+          console.log('⚠️ Could not get real user ID from backend, will use email-based lookup')
         }
         
         saveUser(userData)
@@ -1261,7 +1284,7 @@ const register = async (name, email, phone = '', password, confirmPassword, addr
       
       // Create user data for frontend (minimal info since user hasn't logged in yet)
       const userData = {
-        id: 'CUSTOMER_' + Date.now(), // Will be updated when user logs in
+        id: null, // Will be set to real user ID when user logs in
         name: name,
         email: loginInfo.email,
         phone: phone || '',
@@ -1561,11 +1584,11 @@ const handleOAuth2Callback = async () => {
           if (emailCheck.success && emailCheck.result.exists) {
             // User exists - proceed with login
             const userData = {
-              id: userInfo.maNguoiDung || tokenInfo.user_info?.maNguoiDung || 'OAUTH_USER',
-              name: userInfo.tenNguoiDung || tokenInfo.user_info?.tenNguoiDung || 'OAuth User',
+              id: userInfo.maNguoiDung || tokenInfo.user_info?.maNguoiDung || null,
+              name: userInfo.tenNguoiDung || tokenInfo.user_info?.tenNguoiDung || email.split('@')[0],
               email: email,
               phone: userInfo.soDienThoai || tokenInfo.user_info?.soDienThoai || '',
-              avatar: userInfo.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(userInfo.tenNguoiDung || 'OAuth User')}&background=007bff&color=fff`,
+              avatar: userInfo.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(userInfo.tenNguoiDung || email.split('@')[0])}&background=007bff&color=fff`,
               joinDate: userInfo.ngayTao || new Date().toISOString().split('T')[0],
               totalOrders: userInfo.tongDonHang || 0,
               totalSpent: userInfo.tongChiTieu || 0,
@@ -1586,9 +1609,9 @@ const handleOAuth2Callback = async () => {
               needsRegistration: true,
               error: 'Tài khoản chưa tồn tại. Vui lòng đăng ký trước.',
               userInfo: {
-                name: userInfo.tenNguoiDung || tokenInfo.user_info?.tenNguoiDung || 'OAuth User',
+                name: userInfo.tenNguoiDung || tokenInfo.user_info?.tenNguoiDung || email.split('@')[0],
                 email: email,
-                avatar: userInfo.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(userInfo.tenNguoiDung || 'OAuth User')}&background=007bff&color=fff`
+                avatar: userInfo.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(userInfo.tenNguoiDung || email.split('@')[0])}&background=007bff&color=fff`
               }
             }
           }

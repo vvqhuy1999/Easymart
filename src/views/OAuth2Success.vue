@@ -144,7 +144,7 @@ onMounted(async () => {
       
       // Fallback: auto-login if no email or check failed
       const userData = {
-        id: userId || 'OAUTH_USER',
+        id: userId || null,
         name: email ? email.split('@')[0] : 'OAuth User',
         email: email || '',
         phone: '',
@@ -226,7 +226,7 @@ const handleOAuthConfirm = (data) => {
   } else {
     // Proceed with login
     const userData = {
-      id: 'OAUTH_USER',
+      id: null,
       name: userInfo.name,
       email: userInfo.email,
       phone: '',
