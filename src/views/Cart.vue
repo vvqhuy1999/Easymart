@@ -143,20 +143,7 @@
                   <span>Đã chọn ({{ selectedItemsCount }} sản phẩm):</span>
                   <span>{{ formatPrice(selectedSubtotal) }}</span>
                 </div>
-                <div class="d-flex justify-content-between mb-2">
-                  <span>Phí vận chuyển:</span>
-                  <span :class="selectedShippingFee === 0 ? 'text-success' : ''">
-                    {{ selectedShippingFee === 0 ? 'Miễn phí' : formatPrice(selectedShippingFee) }}
-                  </span>
-                </div>
-                <div v-if="selectedShippingFee === 0" class="small text-success mb-2">
-                  <i class="fas fa-check-circle me-1"></i>
-                  Bạn được miễn phí vận chuyển!
-                </div>
-                <div v-else-if="selectedSubtotal > 0" class="small text-muted mb-2">
-                  <i class="fas fa-info-circle me-1"></i>
-                  Mua thêm {{ formatPrice(200000 - selectedSubtotal) }} để được miễn phí ship
-                </div>
+
                 <hr>
                 <div class="d-flex justify-content-between mb-3">
                   <strong class="fs-5">Tổng cộng:</strong>
@@ -208,7 +195,7 @@
  * - Hiển thị danh sách sản phẩm trong giỏ hàng
  * - Cập nhật số lượng sản phẩm
  * - Xóa sản phẩm khỏi giỏ hàng  
- * - Tính tổng tiền và phí vận chuyển
+ * - Tính tổng tiền
  * - Chuyển đến trang thanh toán (tạo hóa đơn)
  * - Chọn sản phẩm để thanh toán
  */
@@ -278,12 +265,10 @@ const selectedSubtotal = computed(() => {
   }, 0)
 })
 
-const selectedShippingFee = computed(() => {
-  return selectedSubtotal.value >= 200000 ? 0 : 30000
-})
+
 
 const selectedTotal = computed(() => {
-  return selectedSubtotal.value + selectedShippingFee.value
+  return selectedSubtotal.value
 })
 
 const selectedItemsCount = computed(() => {

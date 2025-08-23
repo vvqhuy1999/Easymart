@@ -126,17 +126,26 @@
                   ></textarea>
                 </div>
                 
-                <!-- Button để cập nhật thông tin từ profile -->
+                <!-- Button để chuyển đến trang Profile -->
                 <div class="mb-3" v-if="isLoggedIn">
-                  <button 
-                    type="button" 
-                    class="btn btn-outline-info btn-sm"
-                    @click="prefillUserInfo"
-                    title="Cập nhật thông tin từ profile"
-                  >
-                    <i class="fas fa-sync-alt me-2"></i>
-                    Cập nhật thông tin từ profile
-                  </button>
+                  <div class="d-flex gap-2">
+                    <router-link 
+                      to="/profile" 
+                      class="btn btn-outline-info btn-sm"
+                      title="Chuyển đến trang Profile để cập nhật thông tin"
+                    >
+                      <i class="fas fa-user-edit me-2"></i>
+                      Cập nhật thông tin từ Profile
+                    </router-link>
+                  </div>
+                  
+                  <!-- Thông báo trạng thái đồng bộ -->
+                  <div class="mt-2">
+                    <small class="text-muted">
+                      <i class="fas fa-info-circle me-1"></i>
+                      Thông tin giao hàng sẽ tự động được đồng bộ với Profile khi đặt hàng
+                    </small>
+                  </div>
                 </div>
               </form>
             </div>
@@ -151,7 +160,57 @@
               </h5>
             </div>
             <div class="card-body">
-              <div class="row">
+              <!-- Loading state -->
+              <div v-if="isLoadingPaymentMethods" class="text-center py-4">
+                <div class="spinner-border text-success" role="status">
+                  <span class="visually-hidden">Đang tải...</span>
+                </div>
+                <p class="mt-2 text-muted">Đang tải phương thức thanh toán...</p>
+              </div>
+              
+              <!-- Payment methods from API -->
+              <div v-else-if="paymentMethods.length > 0" class="row">
+                <div 
+                  v-for="method in paymentMethods" 
+                  :key="method.maPTTT"
+                  class="col-md-6 mb-3"
+                >
+                  <div class="form-check payment-method">
+                    <input 
+                      class="form-check-input" 
+                      type="radio" 
+                      name="paymentMethod" 
+                      :id="method.maPTTT"
+                      :value="method.tenPTTT"
+                      v-model="orderForm.paymentMethod"
+                    >
+                    <label class="form-check-label w-100" :for="method.maPTTT">
+                      <div class="d-flex align-items-center">
+                        <i :class="getPaymentMethodIcon(method.tenPTTT)" class="me-3 fs-4"></i>
+                        <div>
+                          <strong>{{ method.tenPTTT }}</strong>
+                          <div class="text-muted small">{{ method.moTa }}</div>
+                          <div v-if="method.phiGiaoDich > 0" class="text-info small">
+                            Phí giao dịch: {{ formatPrice(method.phiGiaoDich) }}
+                          </div>
+                        </div>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Error state -->
+              <div v-else-if="paymentMethodsError" class="alert alert-warning">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                Không thể tải phương thức thanh toán. Vui lòng thử lại sau.
+                <button @click="fetchPaymentMethods" class="btn btn-sm btn-outline-warning ms-2">
+                  <i class="fas fa-redo me-1"></i>Thử lại
+                </button>
+              </div>
+              
+              <!-- Fallback payment methods -->
+              <div v-else class="row">
                 <div class="col-md-6 mb-3">
                   <div class="form-check payment-method">
                     <input 
@@ -173,201 +232,42 @@
                     </label>
                   </div>
                 </div>
-                <div class="col-md-6 mb-3">
-                  <div class="form-check payment-method">
-                    <input 
-                      class="form-check-input" 
-                      type="radio" 
-                      name="paymentMethod" 
-                      id="banking"
-                      value="banking"
-                      v-model="orderForm.paymentMethod"
-                    >
-                    <label class="form-check-label w-100" for="banking">
-                      <div class="d-flex align-items-center">
-                        <i class="fas fa-university text-primary me-3 fs-4"></i>
-                        <div>
-                          <strong>Chuyển khoản ngân hàng</strong>
-                          <div class="text-muted small">Chuyển khoản trước khi giao hàng</div>
-                        </div>
-                      </div>
-                    </label>
-                  </div>
-                </div>
-                <div class="col-md-6 mb-3">
-                  <div class="form-check payment-method">
-                    <input 
-                      class="form-check-input" 
-                      type="radio" 
-                      name="paymentMethod" 
-                      id="qr"
-                      value="qr"
-                      v-model="orderForm.paymentMethod"
-                    >
-                    <label class="form-check-label w-100" for="qr">
-                      <div class="d-flex align-items-center">
-                        <i class="fas fa-qrcode text-dark me-3 fs-4"></i>
-                        <div>
-                          <strong>Quét mã QR</strong>
-                          <div class="text-muted small">Quét QR để thanh toán nhanh</div>
-                        </div>
-                      </div>
-                    </label>
-                  </div>
-                </div>
-                <div class="col-md-6 mb-3">
-                  <div class="form-check payment-method">
-                    <input 
-                      class="form-check-input" 
-                      type="radio" 
-                      name="paymentMethod" 
-                      id="momo"
-                      value="momo"
-                      v-model="orderForm.paymentMethod"
-                    >
-                    <label class="form-check-label w-100" for="momo">
-                      <div class="d-flex align-items-center">
-                        <i class="fab fa-momo text-danger me-3 fs-4"></i>
-                        <div>
-                          <strong>Ví MoMo</strong>
-                          <div class="text-muted small">Thanh toán qua ví điện tử MoMo</div>
-                        </div>
-                      </div>
-                    </label>
-                  </div>
-                </div>
-                <div class="col-md-6 mb-3">
-                  <div class="form-check payment-method">
-                    <input 
-                      class="form-check-input" 
-                      type="radio" 
-                      name="paymentMethod" 
-                      id="vnpay"
-                      value="vnpay"
-                      v-model="orderForm.paymentMethod"
-                    >
-                    <label class="form-check-label w-100" for="vnpay">
-                      <div class="d-flex align-items-center">
-                        <i class="fas fa-credit-card text-info me-3 fs-4"></i>
-                        <div>
-                          <strong>VNPay</strong>
-                          <div class="text-muted small">Thanh toán qua cổng VNPay</div>
-                        </div>
-                      </div>
-                    </label>
-                  </div>
-                </div>
-                <div class="col-md-6 mb-3">
-                  <div class="form-check payment-method">
-                    <input 
-                      class="form-check-input" 
-                      type="radio" 
-                      name="paymentMethod" 
-                      id="zalopay"
-                      value="zalopay"
-                      v-model="orderForm.paymentMethod"
-                    >
-                    <label class="form-check-label w-100" for="zalopay">
-                      <div class="d-flex align-items-center">
-                        <i class="fas fa-mobile-alt text-warning me-3 fs-4"></i>
-                        <div>
-                          <strong>ZaloPay</strong>
-                          <div class="text-muted small">Thanh toán qua ví ZaloPay</div>
-                        </div>
-                      </div>
-                    </label>
-                  </div>
-                </div>
               </div>
 
-              <!-- Banking Info (show when banking is selected) -->
-              <div v-if="orderForm.paymentMethod === 'banking'" class="banking-info mt-3 p-3 bg-light rounded">
+              <!-- Payment Info based on selected method -->
+              <div v-if="orderForm.paymentMethod && selectedPaymentMethod" class="payment-info mt-3 p-3 bg-light rounded">
                 <h6 class="text-primary mb-3">
                   <i class="fas fa-info-circle me-2"></i>
-                  Thông tin chuyển khoản
+                  Thông tin {{ selectedPaymentMethod.tenPTTT }}
                 </h6>
                 <div class="row">
                   <div class="col-md-6">
-                    <p class="mb-2"><strong>Ngân hàng:</strong> Vietcombank</p>
-                    <p class="mb-2"><strong>Số tài khoản:</strong> 1234567890</p>
-                    <p class="mb-2"><strong>Chủ tài khoản:</strong> EASYMART COMPANY</p>
+                    <p class="mb-2"><strong>Số tiền:</strong> {{ formatPrice(total) }}</p>
+                    <p class="mb-2"><strong>Mã đơn hàng:</strong> {{ orderCode }}</p>
+                    <p v-if="selectedPaymentMethod.phiGiaoDich > 0" class="mb-2">
+                      <strong>Phí giao dịch:</strong> {{ formatPrice(selectedPaymentMethod.phiGiaoDich) }}
+                    </p>
                   </div>
                   <div class="col-md-6">
-                    <p class="mb-2"><strong>Nội dung:</strong> THANHTOAN {{ orderCode }}</p>
-                    <p class="mb-0 text-danger"><small><strong>Lưu ý:</strong> Vui lòng chuyển khoản đúng nội dung để đơn hàng được xử lý nhanh chóng.</small></p>
+                    <p class="mb-0 text-info">
+                      <small><strong>Hướng dẫn:</strong> {{ getPaymentInstructions(selectedPaymentMethod.tenPTTT) }}</small>
+                    </p>
                   </div>
                 </div>
-              </div>
-
-              <!-- QR Code Info -->
-              <div v-if="orderForm.paymentMethod === 'qr'" class="payment-info mt-3 p-3 bg-light rounded">
-                <h6 class="text-dark mb-3">
-                  <i class="fas fa-qrcode me-2"></i>
-                  Quét mã QR để thanh toán
-                </h6>
-                <div class="row align-items-center">
-                  <div class="col-md-6 text-center">
-                    <div class="qr-code-placeholder">
-                      <i class="fas fa-qrcode fa-5x text-muted mb-2"></i>
-                      <p class="text-muted">Mã QR sẽ được tạo sau khi đặt hàng</p>
+                
+                <!-- Special info for specific payment methods -->
+                <div v-if="selectedPaymentMethod.tenPTTT === 'Chuyển Khoản'" class="banking-details mt-3 p-3 bg-white rounded border">
+                  <h6 class="text-primary mb-2">Thông tin chuyển khoản</h6>
+                  <div class="row">
+                    <div class="col-md-6">
+                      <p class="mb-1"><strong>Ngân hàng:</strong> Vietcombank</p>
+                      <p class="mb-1"><strong>Số tài khoản:</strong> 1234567890</p>
+                      <p class="mb-1"><strong>Chủ tài khoản:</strong> EASYMART COMPANY</p>
                     </div>
-                  </div>
-                  <div class="col-md-6">
-                    <p class="mb-2"><strong>Số tiền:</strong> {{ formatPrice(total) }}</p>
-                    <p class="mb-2"><strong>Mã đơn hàng:</strong> {{ orderCode }}</p>
-                    <p class="mb-0 text-info"><small><strong>Hướng dẫn:</strong> Mở app ngân hàng → Quét QR → Xác nhận thanh toán</small></p>
-                  </div>
-                </div>
-              </div>
-
-              <!-- MoMo Info -->
-              <div v-if="orderForm.paymentMethod === 'momo'" class="payment-info mt-3 p-3 bg-light rounded">
-                <h6 class="text-danger mb-3">
-                  <i class="fab fa-momo me-2"></i>
-                  Thanh toán qua ví MoMo
-                </h6>
-                <div class="row">
-                  <div class="col-md-6">
-                    <p class="mb-2"><strong>Số tiền:</strong> {{ formatPrice(total) }}</p>
-                    <p class="mb-2"><strong>Mã đơn hàng:</strong> {{ orderCode }}</p>
-                  </div>
-                  <div class="col-md-6">
-                    <p class="mb-0 text-info"><small><strong>Hướng dẫn:</strong> Bạn sẽ được chuyển đến app MoMo để hoàn tất thanh toán sau khi đặt hàng.</small></p>
-                  </div>
-                </div>
-              </div>
-
-              <!-- VNPay Info -->
-              <div v-if="orderForm.paymentMethod === 'vnpay'" class="payment-info mt-3 p-3 bg-light rounded">
-                <h6 class="text-info mb-3">
-                  <i class="fas fa-credit-card me-2"></i>
-                  Thanh toán qua VNPay
-                </h6>
-                <div class="row">
-                  <div class="col-md-6">
-                    <p class="mb-2"><strong>Số tiền:</strong> {{ formatPrice(total) }}</p>
-                    <p class="mb-2"><strong>Mã đơn hàng:</strong> {{ orderCode }}</p>
-                  </div>
-                  <div class="col-md-6">
-                    <p class="mb-2"><strong>Hỗ trợ:</strong> Thẻ ATM, Internet Banking, Ví điện tử</p>
-                    <p class="mb-0 text-info"><small><strong>Hướng dẫn:</strong> Bạn sẽ được chuyển đến cổng thanh toán VNPay để hoàn tất giao dịch.</small></p>
-                  </div>
-                </div>
-              </div>
-
-              <!-- ZaloPay Info -->
-              <div v-if="orderForm.paymentMethod === 'zalopay'" class="payment-info mt-3 p-3 bg-light rounded">
-                <h6 class="text-warning mb-3">
-                  <i class="fas fa-mobile-alt me-2"></i>
-                  Thanh toán qua ZaloPay
-                </h6>
-                <div class="row">
-                  <div class="col-md-6">
-                    <p class="mb-2"><strong>Số tiền:</strong> {{ formatPrice(total) }}</p>
-                    <p class="mb-2"><strong>Mã đơn hàng:</strong> {{ orderCode }}</p>
-                  </div>
-                  <div class="col-md-6">
-                    <p class="mb-0 text-info"><small><strong>Hướng dẫn:</strong> Bạn sẽ được chuyển đến app ZaloPay để hoàn tất thanh toán sau khi đặt hàng.</small></p>
+                    <div class="col-md-6">
+                      <p class="mb-1"><strong>Nội dung:</strong> THANHTOAN {{ orderCode }}</p>
+                      <p class="mb-0 text-danger"><small><strong>Lưu ý:</strong> Vui lòng chuyển khoản đúng nội dung để đơn hàng được xử lý nhanh chóng.</small></p>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -413,15 +313,12 @@
                   <span>Tạm tính ({{ totalItemsCount }} sản phẩm):</span>
                   <span>{{ formatPrice(subtotal) }}</span>
                 </div>
-                <div class="d-flex justify-content-between mb-2">
-                  <span>Phí vận chuyển:</span>
-                  <span :class="shippingFee === 0 ? 'text-success' : ''">
-                    {{ shippingFee === 0 ? 'Miễn phí' : formatPrice(shippingFee) }}
-                  </span>
-                </div>
-                <div v-if="shippingFee === 0" class="small text-success mb-2">
-                  <i class="fas fa-check-circle me-1"></i>
-                  Bạn được miễn phí vận chuyển!
+                
+
+                <!-- Transaction Fee -->
+                <div v-if="selectedPaymentMethod && selectedPaymentMethod.phiGiaoDich > 0" class="d-flex justify-content-between mb-2">
+                  <span>Phí giao dịch ({{ selectedPaymentMethod.tenPTTT }}):</span>
+                  <span class="text-info">{{ formatPrice(selectedPaymentMethod.phiGiaoDich) }}</span>
                 </div>
 
                 <!-- Coupon Section -->
@@ -631,7 +528,7 @@ const checkAuthStatus = () => {
 }
 
 // Helper function để pre-fill thông tin người dùng
-const prefillUserInfo = () => {
+const prefillUserInfo = async () => {
   try {
     // Kiểm tra an toàn các giá trị
     if (!isLoggedIn || !isLoggedIn.value) {
@@ -652,6 +549,9 @@ const prefillUserInfo = () => {
     
     console.log('👤 Pre-filling user info:', user.value)
     
+    // Lấy thông tin giao hàng từ API Profile
+    await fetchShippingInfoFromProfile()
+    
     // Điền thông tin từ user profile
     if (user.value.name) {
       orderForm.value.fullName = user.value.name
@@ -662,8 +562,8 @@ const prefillUserInfo = () => {
     }
     
     // Nếu có thông tin khách hàng chi tiết, sử dụng
-    if (user.value.khachHang) {
-      const khachHang = user.value.khachHang
+    if (user.value.customerInfo) {
+      const khachHang = user.value.customerInfo
       
       if (khachHang.hoTen) {
         orderForm.value.fullName = khachHang.hoTen
@@ -725,10 +625,301 @@ const tryFallbackUserInfo = () => {
   }
 }
 
+// Function để lấy thông tin giao hàng từ Profile API
+const fetchShippingInfoFromProfile = async () => {
+  try {
+    console.log('📡 Fetching shipping info from Profile API...')
+    isSyncingWithProfile.value = true
+    
+    // Lấy maKH từ user state
+    const maKH = user.value?.customerInfo?.maKH
+    if (!maKH) {
+      console.log('⚠️ No maKH found, cannot fetch shipping info')
+      return
+    }
+    
+    // Lấy token từ cookie
+    const token = getTokenFromCookie()
+    if (!token) {
+      console.log('⚠️ No token found, cannot fetch shipping info')
+      return
+    }
+    
+    // Gọi API để lấy thông tin profile
+    const infoEndpoint = `${API_CONFIG.BASE_URL}/api/khachhang/${maKH}/info`
+    console.log('🔗 Fetching from endpoint:', infoEndpoint)
+    
+    const infoResponse = await fetch(infoEndpoint, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    })
+    
+    if (!infoResponse.ok) {
+      console.log('⚠️ Profile API failed:', infoResponse.status)
+      return
+    }
+    
+    const infoResult = await infoResponse.json()
+    console.log('📥 Profile API response:', infoResult)
+    
+    // Xử lý response format khác nhau
+    let customerData = null
+    
+    if (infoResult?.data) {
+      customerData = infoResult.data
+    } else if (infoResult?.result) {
+      customerData = infoResult.result
+    } else if (infoResult?.hoTen || infoResult?.sdt || infoResult?.diaChi) {
+      customerData = infoResult
+    } else if (Array.isArray(infoResult)) {
+      customerData = infoResult[0]
+    }
+    
+    if (customerData) {
+      console.log('✅ Customer data received:', customerData)
+      
+      // Cập nhật user state với dữ liệu mới
+      if (user.value?.customerInfo) {
+        user.value.customerInfo = { ...user.value.customerInfo, ...customerData }
+      }
+      
+      // Cập nhật form với thông tin giao hàng
+      if (customerData.hoTen) {
+        orderForm.value.fullName = customerData.hoTen
+      }
+      
+      if (customerData.sdt) {
+        orderForm.value.phone = customerData.sdt
+      }
+      
+      if (customerData.diaChi) {
+        orderForm.value.address = customerData.diaChi
+      }
+      
+      if (customerData.nguoiDung?.email) {
+        orderForm.value.email = customerData.nguoiDung.email
+      }
+      
+      console.log('✅ Shipping info updated from Profile API')
+    }
+    
+  } catch (error) {
+    console.error('❌ Error fetching shipping info:', error)
+  } finally {
+    isSyncingWithProfile.value = false
+  }
+}
+
+// Function để cập nhật thông tin giao hàng vào Profile
+const updateShippingInfoToProfile = async () => {
+  try {
+    console.log('📤 Updating shipping info to Profile API...')
+    
+    // Lấy maKH từ user state
+    const maKH = user.value?.customerInfo?.maKH
+    if (!maKH) {
+      console.log('⚠️ No maKH found, cannot update shipping info')
+      return false
+    }
+    
+    // Lấy token từ cookie
+    const token = getTokenFromCookie()
+    if (!token) {
+      console.log('⚠️ No token found, cannot update shipping info')
+      return false
+    }
+    
+    // Chuẩn bị dữ liệu cập nhật
+    const updateData = {
+      hoTen: orderForm.value.fullName,
+      sdt: orderForm.value.phone,
+      diaChi: orderForm.value.address,
+      email: orderForm.value.email
+    }
+    
+    console.log('📤 Update data prepared:', updateData)
+    
+    // Gọi API để cập nhật profile
+    const updateEndpoint = `${API_CONFIG.BASE_URL}/api/khachhang/${maKH}/update-info`
+    console.log('🔗 Update endpoint:', updateEndpoint)
+    
+    const updateResponse = await fetch(updateEndpoint, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(updateData)
+    })
+    
+    if (!updateResponse.ok) {
+      const errorData = await updateResponse.json().catch(() => ({}))
+      console.log('⚠️ Update failed:', updateResponse.status, errorData.message)
+      return false
+    }
+    
+    const updateResult = await updateResponse.json()
+    console.log('📥 Update response:', updateResult)
+    
+    // Kiểm tra response format
+    if (updateResult?.success || updateResult?.result?.success || updateResult?.message?.includes('thành công')) {
+      console.log('✅ Shipping info updated successfully')
+      
+      // Cập nhật user state
+      if (user.value?.customerInfo) {
+        user.value.customerInfo = { 
+          ...user.value.customerInfo, 
+          hoTen: orderForm.value.fullName,
+          sdt: orderForm.value.phone,
+          diaChi: orderForm.value.address
+        }
+      }
+      
+      return true
+    } else {
+      console.log('⚠️ Update response format unexpected:', updateResult)
+      return false
+    }
+    
+  } catch (error) {
+    console.error('❌ Error updating shipping info:', error)
+    return false
+  }
+}
+
+// Function để lưu thông tin giao hàng vào Profile (gọi từ button)
+const saveShippingInfoToProfile = async () => {
+  try {
+    console.log('💾 Saving shipping info to Profile...')
+    
+    // Validate form trước khi lưu
+    if (!validateForm()) {
+      showNotification('Vui lòng kiểm tra lại thông tin giao hàng', 'error')
+      return
+    }
+    
+    // Kiểm tra xem user có đăng nhập không
+    if (!isLoggedIn || !isLoggedIn.value || !user.value?.customerInfo?.maKH) {
+      showNotification('Vui lòng đăng nhập để lưu thông tin giao hàng', 'warning')
+      return
+    }
+    
+    // Cập nhật thông tin vào Profile
+    const updateSuccess = await updateShippingInfoToProfile()
+    
+    if (updateSuccess) {
+      showNotification('Thông tin giao hàng đã được lưu vào Profile thành công!', 'success')
+    } else {
+      showNotification('Không thể lưu thông tin giao hàng vào Profile. Vui lòng thử lại!', 'error')
+    }
+    
+  } catch (error) {
+    console.error('❌ Error saving shipping info to Profile:', error)
+    showNotification('Có lỗi xảy ra khi lưu thông tin giao hàng!', 'error')
+  }
+}
+
+// Helper function để lấy token từ cookie
+const getTokenFromCookie = () => {
+  return document.cookie.split('; ').find(row => row.startsWith('easymart-token='))?.split('=')[1]
+}
+
+// Function để fetch payment methods từ API
+const fetchPaymentMethods = async () => {
+  try {
+    console.log('📡 Fetching payment methods from API...')
+    isLoadingPaymentMethods.value = true
+    paymentMethodsError.value = ''
+    
+    const response = await fetch(`${API_CONFIG.BASE_URL}/api/phuongthucthanhtoan`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    })
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+    
+    const result = await response.json()
+    console.log('📥 Payment methods API response:', result)
+    
+    // Xử lý response format khác nhau
+    let methods = []
+    
+    if (result?.data) {
+      methods = result.data
+    } else if (result?.result) {
+      methods = result.result
+    } else if (Array.isArray(result)) {
+      methods = result
+    } else {
+      throw new Error('Unexpected response format')
+    }
+    
+         // Lọc chỉ những phương thức có trạng thái = 1 và không bị xóa
+     const activeMethods = methods.filter(method => 
+       method.trangThai === 1 && !method.isDeleted
+     )
+     
+     console.log('✅ Active payment methods:', activeMethods)
+     paymentMethods.value = activeMethods
+     
+     // Set default payment method nếu chưa có
+     if (activeMethods.length > 0 && !orderForm.value.paymentMethod) {
+       orderForm.value.paymentMethod = activeMethods[0].tenPTTT
+     }
+    
+  } catch (error) {
+    console.error('❌ Error fetching payment methods:', error)
+    paymentMethodsError.value = 'Không thể tải phương thức thanh toán: ' + error.message
+  } finally {
+    isLoadingPaymentMethods.value = false
+  }
+}
+
+// Function để lấy icon cho phương thức thanh toán
+const getPaymentMethodIcon = (methodName) => {
+  const iconMap = {
+    'Tiền Mặt': 'fas fa-hand-holding-usd text-success',
+    'Chuyển Khoản': 'fas fa-university text-primary',
+    'MoMo': 'fab fa-momo text-danger',
+    'ZaloPay': 'fas fa-mobile-alt text-warning',
+    'Thẻ Tín Dụng': 'fas fa-credit-card text-info',
+    'VNPay': 'fas fa-credit-card text-info'
+  }
+  
+  return iconMap[methodName] || 'fas fa-credit-card text-secondary'
+}
+
+// Function để lấy hướng dẫn cho phương thức thanh toán
+const getPaymentInstructions = (methodName) => {
+  const instructions = {
+    'Tiền Mặt': 'Bạn sẽ thanh toán bằng tiền mặt khi nhận hàng.',
+    'Chuyển Khoản': 'Vui lòng chuyển khoản theo thông tin ngân hàng bên dưới.',
+    'MoMo': 'Bạn sẽ được chuyển đến app MoMo để hoàn tất thanh toán.',
+    'ZaloPay': 'Bạn sẽ được chuyển đến app ZaloPay để hoàn tất thanh toán.',
+    'Thẻ Tín Dụng': 'Bạn sẽ được chuyển đến cổng thanh toán để nhập thông tin thẻ.',
+    'VNPay': 'Bạn sẽ được chuyển đến cổng thanh toán VNPay để hoàn tất giao dịch.'
+  }
+  
+  return instructions[methodName] || 'Vui lòng làm theo hướng dẫn thanh toán.'
+}
+
 // Local state
 const isProcessing = ref(false)
 const orderCode = ref('')
 const errors = ref({})
+const isSyncingWithProfile = ref(false)
+
+// Payment methods state
+const paymentMethods = ref([])
+const isLoadingPaymentMethods = ref(false)
+const paymentMethodsError = ref('')
 
 // Coupon state
 const couponCode = ref('')
@@ -743,14 +934,7 @@ const availableCoupons = ref([
     minOrderValue: 100000,
     maxDiscount: 50000
   },
-  {
-    code: 'FREESHIP',
-    description: 'Miễn phí vận chuyển',
-    discountType: 'shipping',
-    discountValue: 0,
-    minOrderValue: 0,
-    maxDiscount: 30000
-  },
+
   {
     code: 'SAVE50K',
     description: 'Giảm 50.000đ cho đơn từ 500.000đ',
@@ -789,13 +973,7 @@ const subtotal = computed(() => {
   }, 0)
 })
 
-const shippingFee = computed(() => {
-  // If coupon covers shipping, return 0
-  if (appliedCoupon.value?.discountType === 'shipping') {
-    return 0
-  }
-  return subtotal.value >= 200000 ? 0 : 30000
-})
+
 
 const couponDiscount = computed(() => {
   if (!appliedCoupon.value) return 0
@@ -816,7 +994,7 @@ const couponDiscount = computed(() => {
       discount = coupon.discountValue
       break
     case 'shipping':
-      discount = shippingFee.value
+      discount = 0 // Không còn phí vận chuyển
       break
     default:
       discount = 0
@@ -827,7 +1005,11 @@ const couponDiscount = computed(() => {
 })
 
 const total = computed(() => {
-  return subtotal.value + shippingFee.value - couponDiscount.value
+  // Lấy phí giao dịch từ payment method được chọn
+  const transactionFee = selectedPaymentMethod.value?.phiGiaoDich || 0
+  
+  // Tính tổng: tạm tính - giảm giá + phí giao dịch
+  return subtotal.value - couponDiscount.value + transactionFee
 })
 
 const totalItemsCount = computed(() => {
@@ -839,6 +1021,11 @@ const isFormValid = computed(() => {
          orderForm.value.phone && 
          orderForm.value.address &&
          orderForm.value.paymentMethod
+})
+
+// Computed property để lấy payment method được chọn
+const selectedPaymentMethod = computed(() => {
+  return paymentMethods.value.find(method => method.tenpttt === orderForm.value.paymentMethod)
 })
 
 // Kiểm tra xem có phải mua ngay từ ProductDetail không
@@ -936,6 +1123,18 @@ const processOrder = async () => {
   isProcessing.value = true
   
   try {
+    // Tự động cập nhật thông tin giao hàng vào Profile nếu user đã đăng nhập
+    if (isLoggedIn && isLoggedIn.value && user.value?.customerInfo?.maKH) {
+      console.log('🔄 Auto-updating shipping info to Profile...')
+      const updateSuccess = await updateShippingInfoToProfile()
+      
+      if (updateSuccess) {
+        showNotification('Thông tin giao hàng đã được cập nhật vào Profile!', 'success')
+      } else {
+        console.log('⚠️ Failed to update shipping info to Profile, continuing with order...')
+      }
+    }
+    
     // Kiểm tra xem có hóa đơn từ Cart.vue không
     const invoiceData = localStorage.getItem('easymart-invoice')
     let order
@@ -960,7 +1159,6 @@ const processOrder = async () => {
         items: selectedItems.value,
         summary: {
           subtotal: subtotal.value,
-          shippingFee: shippingFee.value,
           couponDiscount: couponDiscount.value,
           total: total.value,
           itemsCount: totalItemsCount.value
@@ -987,7 +1185,6 @@ const processOrder = async () => {
         items: selectedItems.value,
         summary: {
           subtotal: subtotal.value,
-          shippingFee: shippingFee.value,
           couponDiscount: couponDiscount.value,
           total: total.value,
           itemsCount: totalItemsCount.value
@@ -1040,36 +1237,39 @@ const handlePaymentRedirect = (order) => {
   localStorage.setItem('easymart-last-order', JSON.stringify(order))
   
   switch (paymentMethod) {
-    case 'cod':
+    case 'Tiền Mặt':
       showNotification(`Đặt hàng thành công! Mã đơn hàng: ${orderCode.value}. Bạn sẽ thanh toán khi nhận hàng.`, 'success')
       break
       
-    case 'banking':
+    case 'Chuyển Khoản':
       showNotification(`Đặt hàng thành công! Mã đơn hàng: ${orderCode.value}. Vui lòng chuyển khoản theo thông tin đã cung cấp.`, 'success')
       break
       
-    case 'qr':
-      showNotification(`Đặt hàng thành công! Mã đơn hàng: ${orderCode.value}. Vui lòng quét mã QR để thanh toán.`, 'success')
-      break
-      
-    case 'momo':
+    case 'MoMo':
       showNotification(`Đang chuyển đến MoMo để thanh toán...`, 'info')
       setTimeout(() => {
         showNotification(`Thanh toán MoMo thành công! Mã đơn hàng: ${orderCode.value}`, 'success')
       }, 1500)
       break
       
-    case 'vnpay':
-      showNotification(`Đang chuyển đến VNPay để thanh toán...`, 'info')
-      setTimeout(() => {
-        showNotification(`Thanh toán VNPay thành công! Mã đơn hàng: ${orderCode.value}`, 'success')
-      }, 1500)
-      break
-      
-    case 'zalopay':
+    case 'ZaloPay':
       showNotification(`Đang chuyển đến ZaloPay để thanh toán...`, 'info')
       setTimeout(() => {
         showNotification(`Thanh toán ZaloPay thành công! Mã đơn hàng: ${orderCode.value}`, 'success')
+      }, 1500)
+      break
+      
+    case 'Thẻ Tín Dụng':
+      showNotification(`Đang chuyển đến cổng thanh toán...`, 'info')
+      setTimeout(() => {
+        showNotification(`Thanh toán thẻ tín dụng thành công! Mã đơn hàng: ${orderCode.value}`, 'success')
+      }, 1500)
+      break
+      
+    case 'VNPay':
+      showNotification(`Đang chuyển đến VNPay để thanh toán...`, 'info')
+      setTimeout(() => {
+        showNotification(`Thanh toán VNPay thành công! Mã đơn hàng: ${orderCode.value}`, 'success')
       }, 1500)
       break
       
@@ -1091,8 +1291,11 @@ const handlePaymentRedirect = (order) => {
 }
 
 // Initialize
-onMounted(() => {
+onMounted(async () => {
   console.log('🚀 Checkout page mounted')
+  
+  // Fetch payment methods from API
+  await fetchPaymentMethods()
   
   // Debug localStorage data
   debugLocalStorageData()
@@ -1161,7 +1364,7 @@ onMounted(() => {
     checkAuthStatus()
     
     // Pre-fill thông tin người dùng vào form
-    prefillUserInfo()
+    await prefillUserInfo()
     
   } else {
     // Không có hóa đơn, tạo mới
@@ -1190,7 +1393,7 @@ onMounted(() => {
       checkAuthStatus()
       
       // Pre-fill thông tin người dùng vào form
-      prefillUserInfo()
+      await prefillUserInfo()
   }
   
   // Debug: Log final state
