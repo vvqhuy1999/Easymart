@@ -30,13 +30,6 @@
       />
     </div>
 
-    <!-- Coupon Button Widget -->
-    <CouponButtonWidget 
-      :show-on-scroll="true"
-      :scroll-threshold="300"
-      @coupon-copied="handleCouponCopied"
-    />
-
     <!-- Promotion Button -->
     <Transition name="fade">
       <button 
@@ -75,7 +68,6 @@ import { useEasyMart } from '../composables/useEasyMart'
 import HeroCarousel from '../components/HeroCarousel.vue'
 
 import CategorySection from '../components/CategorySection.vue'
-import CouponButtonWidget from '../components/CouponButtonWidget.vue'
 
 
 // Router instance
@@ -128,11 +120,7 @@ const goToPromotions = () => {
   router.push({ name: 'Promotions' })
 }
 
-// Handle coupon copied
-const handleCouponCopied = (couponCode) => {
-  // You can add notification here if needed
-  
-}
+
 
 // Handle scroll for promotion button visibility
 const handleScroll = () => {

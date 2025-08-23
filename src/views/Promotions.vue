@@ -22,6 +22,55 @@
           </div>
           <h1 class="display-4 fw-bold mb-3">🎉 KHUYẾN MÃI BÙ<span class="text-warning">NG NỔ</span> 🎉</h1>
           <p class="lead mb-4">💥 Ưu đãi khủng - Giá sốc - Tiết kiệm tối đa 💥</p>
+          
+          <!-- Promotion Stats -->
+          <div v-if="!isLoading && !error && promotions.length > 0" class="promo-stats mb-4">
+            <div class="row g-3 justify-content-center">
+              <div class="col-auto">
+                <div class="stat-item">
+                  <span class="stat-number">{{ getPromotionStats().total }}</span>
+                  <span class="stat-label">Tổng khuyến mãi</span>
+                </div>
+              </div>
+              <div class="col-auto">
+                <div class="stat-item">
+                  <span class="stat-number">{{ getPromotionStats().active }}</span>
+                  <span class="stat-label">Đang diễn ra</span>
+                </div>
+              </div>
+              <div class="col-auto">
+                <div class="stat-item">
+                  <span class="stat-number">{{ getPromotionStats().percentage }}</span>
+                  <span class="stat-label">Giảm %</span>
+                </div>
+              </div>
+              <div class="col-auto">
+                <div class="stat-item">
+                  <span class="stat-number">{{ getPromotionStats().buyXGetY }}</span>
+                  <span class="stat-label">Mua X tặng Y</span>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Coupon Codes Preview -->
+            <div class="coupon-preview mt-4">
+              <h6 class="text-white mb-3">
+                <i class="fas fa-ticket-alt me-2"></i>
+                Mã khuyến mãi có sẵn:
+              </h6>
+              <div class="d-flex flex-wrap gap-2 justify-content-center">
+                <span 
+                  v-for="promo in promotions.filter(p => p.couponCode)" 
+                  :key="promo.maKM"
+                  class="coupon-badge"
+                  :title="`${promo.tenChuongTrinh} - ${promo.moTa}`"
+                >
+                  {{ promo.couponCode }}
+                </span>
+              </div>
+            </div>
+          </div>
+          
           <div class="promo-badges">
             <span class="badge-flash">⚡ FLASH SALE</span>
             <span class="badge-hot">🔥 HOT DEAL</span>
@@ -32,7 +81,26 @@
     </div>
 
     <!-- Coupons Section -->
+    <div v-if="isLoading" class="text-center py-5">
+      <div class="spinner-border text-warning" role="status" style="width: 3rem; height: 3rem;">
+        <span class="visually-hidden">Đang tải...</span>
+      </div>
+      <p class="mt-3 text-white fs-5">Đang tải khuyến mãi...</p>
+    </div>
+    
+    <div v-else-if="error" class="container py-5">
+      <div class="alert alert-warning text-center">
+        <i class="fas fa-exclamation-triangle fa-2x mb-3"></i>
+        <h5>Không thể tải khuyến mãi</h5>
+        <p class="mb-3">{{ error }}</p>
+        <button @click="fetchPromotions" class="btn btn-warning">
+          <i class="fas fa-redo me-2"></i>Thử lại
+        </button>
+      </div>
+    </div>
+    
     <CouponsSection 
+      v-else
       :coupons="coupons"
       :showMoreButton="true"
       @save-coupon="saveCoupon"
@@ -40,7 +108,7 @@
     />
 
     <!-- Additional Promotions Info -->
-    <section class="promotion-info py-5">
+    <section v-if="!isLoading && !error && promotions.length > 0" class="promotion-info py-5">
       <div class="container">
         <div class="row g-4">
           <div class="col-md-4">
@@ -49,7 +117,10 @@
                 <i class="fas fa-clock"></i>
               </div>
               <h5>⏰ Ưu Đãi Có Hạn</h5>
-              <p class="text-muted">Các mã khuyến mãi có thời gian sử dụng giới hạn, hãy sử dụng ngay!</p>
+              <p class="text-muted">
+                {{ promotions.filter(p => isPromotionActive(p)).length }} khuyến mãi đang diễn ra! 
+                Hãy sử dụng ngay trước khi hết hạn.
+              </p>
               <div class="card-shine"></div>
             </div>
           </div>
@@ -58,19 +129,89 @@
               <div class="info-icon">
                 <i class="fas fa-percentage"></i>
               </div>
-              <h5>💰 Giảm Giá Lên Đến 70%</h5>
-              <p class="text-muted">Tiết kiệm đáng kể với các mã giảm giá có giá trị cực khủng!</p>
+              <h5>💰 Giảm Giá Lên Đến {{ getMaxDiscount() }}%</h5>
+              <p class="text-muted">
+                Tiết kiệm đáng kể với {{ promotions.filter(p => p.loaiKM === 'PhanTram').length }} 
+                mã giảm giá theo phần trăm!
+              </p>
               <div class="card-shine"></div>
             </div>
           </div>
           <div class="col-md-4">
             <div class="info-card card-info">
               <div class="info-icon">
-                <i class="fas fa-shipping-fast"></i>
+                <i class="fas fa-gift"></i>
               </div>
-              <h5>🚚 Miễn Phí Vận Chuyển</h5>
-              <p class="text-muted">Nhận ưu đãi miễn phí vận chuyển cho đơn hàng từ 200.000đ.</p>
+              <h5>🎁 Khuyến Mãi Đặc Biệt</h5>
+              <p class="text-muted">
+                {{ promotions.filter(p => p.loaiKM === 'MuaXTangY').length }} chương trình 
+                mua X tặng Y đang chờ bạn!
+              </p>
               <div class="card-shine"></div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Coupon Details Section -->
+        <div class="row mt-5">
+          <div class="col-12">
+            <div class="coupon-details-section">
+              <h3 class="text-center mb-4">
+                <i class="fas fa-tags text-primary me-2"></i>
+                Chi Tiết Mã Khuyến Mãi
+              </h3>
+              <div class="row g-4">
+                <div 
+                  v-for="promo in promotions.filter(p => p.couponCode)" 
+                  :key="promo.maKM"
+                  class="col-lg-4 col-md-6"
+                >
+                  <div class="coupon-detail-card">
+                    <div class="coupon-header">
+                      <div class="coupon-code">{{ promo.couponCode }}</div>
+                      <div class="coupon-type">{{ getCouponTypeLabel(promo.loaiKM) }}</div>
+                    </div>
+                    <div class="coupon-body">
+                      <h6 class="coupon-title">{{ promo.tenChuongTrinh }}</h6>
+                      <p class="coupon-description">{{ promo.moTa }}</p>
+                      <div class="coupon-value">
+                        <span v-if="promo.loaiKM === 'PhanTram'">
+                          Giảm {{ promo.giaTriKM }}%
+                        </span>
+                        <span v-else-if="promo.loaiKM === 'Diem'">
+                          Tặng {{ promo.giaTriKM }} điểm
+                        </span>
+                        <span v-else-if="promo.loaiKM === 'MuaXTangY'">
+                          Mua X tặng Y
+                        </span>
+                        <span v-else>
+                          Giá trị: {{ promo.giaTriKM }}
+                        </span>
+                      </div>
+                      <div class="coupon-conditions">
+                        <small class="text-muted">{{ promo.dieuKienApDung }}</small>
+                      </div>
+                      <div class="coupon-usage">
+                        <div class="progress mb-2" style="height: 8px;">
+                          <div 
+                            class="progress-bar bg-success" 
+                            :style="{ width: `${(promo.daSuDung / promo.soLuongToiDa) * 100}%` }"
+                          ></div>
+                        </div>
+                        <small class="text-muted">
+                          Đã sử dụng: {{ promo.daSuDung }}/{{ promo.soLuongToiDa }}
+                        </small>
+                      </div>
+                      <div class="coupon-dates">
+                        <small class="text-muted">
+                          <i class="fas fa-calendar me-1"></i>
+                          {{ formatDate(promo.ngayBatDau) }} - {{ formatDate(promo.ngayKetThuc) }}
+                        </small>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -102,12 +243,12 @@
  * Hiển thị:
  * - Breadcrumb navigation
  * - Page header với tiêu đề bùng nổ
- * - Coupons Section với tất cả mã khuyến mãi
+ * - Coupons Section với tất cả mã khuyến mãi từ API
  * - Thông tin bổ sung về khuyến mãi
  * - Nút quay lại mua sắm
  */
 
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 
 // Composables
@@ -121,9 +262,105 @@ const router = useRouter()
 
 // Lấy data từ composable
 const {
-  coupons,
-  saveCoupon
+  formatPrice,
+  showNotification
 } = useEasyMart()
+
+// Local state cho khuyến mãi
+const promotions = ref([])
+const isLoading = ref(false)
+const error = ref('')
+
+// Fetch khuyến mãi từ API
+const fetchPromotions = async () => {
+  try {
+    isLoading.value = true
+    error.value = ''
+    
+    console.log('📡 Fetching promotions from API...')
+    const response = await fetch('http://localhost:8080/api/khuyenmai')
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+    
+    const result = await response.json()
+    console.log('📥 Promotions API response:', result)
+    
+    // Xử lý response format khác nhau
+    let promotionsData = []
+    
+    if (result?.data) {
+      promotionsData = result.data
+    } else if (result?.result) {
+      promotionsData = result.result
+    } else if (Array.isArray(result)) {
+      promotionsData = result
+    } else {
+      throw new Error('Unexpected response format')
+    }
+    
+    // Lọc chỉ những khuyến mãi có trạng thái = 1 và không bị xóa
+    const activePromotions = promotionsData.filter(promo => 
+      promo.trangThai === 1 && !promo.isDeleted
+    )
+    
+    console.log('✅ Active promotions:', activePromotions)
+    promotions.value = activePromotions
+    
+  } catch (error) {
+    console.error('❌ Error fetching promotions:', error)
+    error.value = 'Không thể tải danh sách khuyến mãi: ' + error.message
+    showNotification('Có lỗi xảy ra khi tải khuyến mãi!', 'error')
+  } finally {
+    isLoading.value = false
+  }
+}
+
+// Convert API data to coupon format cho CouponsSection
+const coupons = computed(() => {
+  return promotions.value.map(promo => ({
+    id: promo.maKM,
+    code: promo.couponCode || promo.maKM, // Sử dụng couponCode nếu có, fallback về maKM
+    description: promo.moTa,
+    discountType: mapDiscountType(promo.loaiKM),
+    discountValue: promo.giaTriKM,
+    minOrderValue: 0, // API không có field này, để mặc định
+    maxDiscount: promo.giaTriKM * 1000, // Ước tính dựa trên giá trị khuyến mãi
+    startDate: new Date(promo.ngayBatDau),
+    endDate: new Date(promo.ngayKetThuc),
+    isActive: isPromotionActive(promo),
+    remainingQuantity: promo.soLuongToiDa - promo.daSuDung,
+    totalQuantity: promo.soLuongToiDa,
+    usedQuantity: promo.daSuDung,
+    conditions: promo.dieuKienApDung,
+    programName: promo.tenChuongTrinh
+  }))
+})
+
+// Map loại khuyến mãi từ API sang format của component
+const mapDiscountType = (loaiKM) => {
+  const typeMap = {
+    'PhanTram': 'percentage',
+    'TienMat': 'fixed',
+    'Diem': 'points',
+    'MuaXTangY': 'buyXGetY',
+    'GiamGia': 'discount'
+  }
+  return typeMap[loaiKM] || 'discount'
+}
+
+// Kiểm tra khuyến mãi có còn hiệu lực không
+const isPromotionActive = (promo) => {
+  const now = new Date()
+  const startDate = new Date(promo.ngayBatDau)
+  const endDate = new Date(promo.ngayKetThuc)
+  
+  return now >= startDate && now <= endDate && 
+         promo.trangThai === 1 && 
+         !promo.isDeleted &&
+         promo.daSuDung < promo.soLuongToiDa
+}
 
 // Methods
 const loadMoreCoupons = () => {
@@ -131,9 +368,59 @@ const loadMoreCoupons = () => {
   console.log('Loading more coupons...')
 }
 
-// Set page title
-onMounted(() => {
+const saveCoupon = (coupon) => {
+  console.log('Saving coupon:', coupon)
+  // Tìm promotion tương ứng để lấy couponCode
+  const promotion = promotions.value.find(p => p.maKM === coupon.id)
+  const displayCode = promotion?.couponCode || coupon.code
+  
+  showNotification(`Đã lưu mã khuyến mãi ${displayCode}!`, 'success')
+}
+
+// Get max discount value
+const getMaxDiscount = () => {
+  const percentagePromotions = promotions.value.filter(p => p.loaiKM === 'PhanTram');
+  if (percentagePromotions.length === 0) return 0;
+  return Math.max(...percentagePromotions.map(p => p.giaTriKM));
+}
+
+// Get promotion statistics
+const getPromotionStats = () => {
+  const total = promotions.value.length;
+  const active = promotions.value.filter(p => isPromotionActive(p)).length;
+  const percentage = promotions.value.filter(p => p.loaiKM === 'PhanTram').length;
+  const buyXGetY = promotions.value.filter(p => p.loaiKM === 'MuaXTangY').length;
+  const points = promotions.value.filter(p => p.loaiKM === 'Diem').length;
+  
+  return { total, active, percentage, buyXGetY, points };
+}
+
+// Format date for display
+const formatDate = (dateString) => {
+  const date = new Date(dateString);
+  return date.toLocaleDateString('vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric'
+  });
+}
+
+// Get coupon type label
+const getCouponTypeLabel = (loaiKM) => {
+  const typeMap = {
+    'PhanTram': 'Giảm giá',
+    'TienMat': 'Tiền mặt',
+    'Diem': 'Điểm',
+    'MuaXTangY': 'Mua X tặng Y',
+    'GiamGia': 'Giảm giá'
+  }
+  return typeMap[loaiKM] || 'Khuyến mãi'
+}
+
+// Set page title và fetch data
+onMounted(async () => {
   document.title = 'Khuyến mãi Bùng Nổ - EasyMart'
+  await fetchPromotions()
 })
 </script>
 
@@ -367,6 +654,194 @@ onMounted(() => {
   margin-bottom: 1rem;
   font-weight: 700;
   font-size: 1.3rem;
+}
+
+/* Promotion Stats */
+.promo-stats {
+  margin-bottom: 2rem;
+}
+
+.stat-item {
+  text-align: center;
+  padding: 1rem 2rem;
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(5px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+}
+
+.stat-item:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+}
+
+.stat-number {
+  display: block;
+  font-size: 2.5rem;
+  font-weight: 800;
+  color: #feca57;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+  margin-bottom: 0.5rem;
+}
+
+.stat-label {
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.8);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* Coupon Codes Preview */
+.coupon-preview {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 15px;
+  padding: 1.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(5px);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+.coupon-preview h6 {
+  font-size: 1rem;
+  color: rgba(255, 255, 255, 0.9);
+  margin-bottom: 0.8rem;
+  font-weight: 600;
+}
+
+.coupon-badge {
+  display: inline-block;
+  padding: 0.5rem 1rem;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: white;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+  transition: all 0.3s ease;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.coupon-badge:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: translateY(-2px);
+  box-shadow: 0 5px 10px rgba(0, 0, 0, 0.1);
+}
+
+/* Coupon Details Section */
+.coupon-details-section {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  padding: 2rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+}
+
+.coupon-detail-card {
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 15px;
+  padding: 1.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
+  transition: all 0.3s ease;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.coupon-detail-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+}
+
+.coupon-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding-bottom: 0.8rem;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.coupon-code {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #2d3748;
+  background: #feca57;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  border: 1px solid #feca57;
+  box-shadow: 0 2px 8px rgba(254, 202, 87, 0.3);
+  white-space: nowrap;
+}
+
+.coupon-type {
+  font-size: 0.9rem;
+  color: #4a5568;
+  background: #e2e8f0;
+  padding: 0.4rem 0.8rem;
+  border-radius: 15px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.coupon-body {
+  margin-bottom: 1.5rem;
+}
+
+.coupon-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #2d3748;
+  margin-bottom: 0.5rem;
+}
+
+.coupon-description {
+  font-size: 0.9rem;
+  color: #4a5568;
+  line-height: 1.4;
+  margin-bottom: 0.8rem;
+}
+
+.coupon-value {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #2d3748;
+  margin-bottom: 0.5rem;
+}
+
+.coupon-conditions {
+  font-size: 0.8rem;
+  color: #718096;
+  margin-bottom: 0.8rem;
+}
+
+.coupon-usage {
+  margin-bottom: 0.8rem;
+}
+
+.progress {
+  height: 8px;
+  border-radius: 4px;
+  background-color: #e2e8f0;
+  overflow: hidden;
+}
+
+.progress-bar {
+  border-radius: 4px;
+  transition: width 0.6s ease-in-out;
+}
+
+.coupon-dates {
+  font-size: 0.8rem;
+  color: #718096;
 }
 
 /* Explosive Button */

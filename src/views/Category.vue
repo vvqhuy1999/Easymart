@@ -84,12 +84,7 @@
       </div>
     </div>
 
-    <!-- Coupon Button Widget -->
-    <CouponButtonWidget 
-      :show-on-scroll="true"
-      :scroll-threshold="200"
-      @coupon-copied="handleCouponCopied"
-    />
+
 
     <!-- Footer -->
     <!-- Đã xóa Footer -->
@@ -111,7 +106,7 @@ import { API_BASE_URL, API_ENDPOINTS } from '../config/api'
 // Components
 // Đã xóa import Header và Footer
 import ProductCard from '../components/ProductCard.vue'
-import CouponButtonWidget from '../components/CouponButtonWidget.vue'
+
 
 // Router
 const router = useRouter()
@@ -202,9 +197,7 @@ const handleAddToWishlist = (productId) => {
   showNotification('Đã thêm vào danh sách yêu thích!', 'success')
 }
 
-const handleCouponCopied = (couponCode) => {
-  showNotification(`Đã copy mã khuyến mãi: ${couponCode}`, 'success')
-}
+
 
 // Lifecycle hooks
 onMounted(() => {

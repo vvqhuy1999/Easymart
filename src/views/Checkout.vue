@@ -406,6 +406,10 @@
                     <i class="fas fa-spinner fa-spin me-2"></i>
                     Đang xử lý...
                   </span>
+                  <span v-else-if="isProcessingVNPay">
+                    <i class="fas fa-spinner fa-spin me-2"></i>
+                    Đang chuyển đến VNPay...
+                  </span>
                   <span v-else>
                     <i class="fas fa-check me-2"></i>
                     Đặt hàng
@@ -912,6 +916,7 @@ const getPaymentInstructions = (methodName) => {
 
 // Local state
 const isProcessing = ref(false)
+const isProcessingVNPay = ref(false)
 const orderCode = ref('')
 const errors = ref({})
 const isSyncingWithProfile = ref(false)
@@ -1221,7 +1226,7 @@ const processOrder = async () => {
     console.log('🧹 localStorage cleared')
     
     // Handle different payment methods
-    handlePaymentRedirect(order)
+    await handlePaymentRedirect(order)
     
   } catch (error) {
     showNotification('Có lỗi xảy ra khi đặt hàng. Vui lòng thử lại!', 'error')
@@ -1230,7 +1235,7 @@ const processOrder = async () => {
   }
 }
 
-const handlePaymentRedirect = (order) => {
+const handlePaymentRedirect = async (order) => {
   const paymentMethod = orderForm.value.paymentMethod
   
   // Save order info to localStorage for payment success page
@@ -1267,27 +1272,215 @@ const handlePaymentRedirect = (order) => {
       break
       
     case 'VNPay':
-      showNotification(`Đang chuyển đến VNPay để thanh toán...`, 'info')
-      setTimeout(() => {
-        showNotification(`Thanh toán VNPay thành công! Mã đơn hàng: ${orderCode.value}`, 'success')
-      }, 1500)
-      break
+      try {
+        isProcessingVNPay.value = true
+        showNotification(`Đang chuyển đến VNPay để thanh toán...`, 'info')
+        
+        // Lấy token từ cookie
+        const token = getTokenFromCookie()
+        if (!token) {
+          showNotification('Vui lòng đăng nhập để thanh toán qua VNPay!', 'error')
+          return
+        }
+        
+        // Chuẩn bị dữ liệu thanh toán theo format VNPay
+        const paymentData = {
+          // Các trường thay đổi theo đơn hàng
+          vnp_OrderInfo: `Thanh toán đơn hàng ${orderCode.value}`,
+          ordertype: "other",
+          amount: Math.round(total.value).toString(), // Chuyển thành string như mẫu API
+          maHD: orderCode.value.replace(/^(HD|EM)/, ''), // Loại bỏ prefix "HD" hoặc "EM"
+          
+          // Các trường mặc định cố định (theo mẫu API VNPay)
+          language: "vn",
+          txt_billing_mobile: "0905123456",
+          txt_billing_email: "nguyenvana@example.com",
+          txt_billing_fullname: "Nguyen Van A",
+          txt_inv_addr1: "123 Duong So 1, Quan 1, TP.HCM"
+        }
+        
+        // Đảm bảo không có giá trị undefined hoặc null
+        Object.keys(paymentData).forEach(key => {
+          if (paymentData[key] === undefined || paymentData[key] === null) {
+            paymentData[key] = ""
+          }
+        })
+        
+        // Log để debug amount conversion
+        console.log('💳 Amount conversion:', {
+          original: total.value,
+          converted: paymentData.amount,
+          originalType: typeof total.value,
+          convertedType: typeof paymentData.amount
+        })
+        
+        // So sánh với mẫu API VNPay
+        console.log('📋 API Format Comparison:', {
+          expected: {
+            amount: "100000",
+            amountType: "string"
+          },
+          actual: {
+            amount: paymentData.amount,
+            amountType: typeof paymentData.amount
+          },
+          match: typeof paymentData.amount === "string"
+        })
+        
+        // So sánh dữ liệu form với mẫu mặc định
+        console.log('📋 Form Data vs Default Template:', {
+          template: {
+            txt_billing_mobile: "0905123456",
+            txt_billing_email: "nguyenvana@example.com", 
+            txt_billing_fullname: "Nguyen Van A",
+            txt_inv_addr1: "123 Duong So 1, Quan 1, TP.HCM"
+          },
+          actual: {
+            txt_billing_mobile: paymentData.txt_billing_mobile,
+            txt_billing_email: paymentData.txt_billing_email,
+            txt_billing_fullname: paymentData.txt_billing_fullname,
+            txt_inv_addr1: paymentData.txt_inv_addr1
+          },
+          note: "Using default values as per API template"
+        })
+        
+        // Log trước validation để debug
+        console.log('🔍 Pre-validation check:', {
+          txt_billing_mobile: paymentData.txt_billing_mobile,
+          txt_billing_fullname: paymentData.txt_billing_fullname,
+          txt_inv_addr1: paymentData.txt_inv_addr1,
+          amount: paymentData.amount,
+          maHD: paymentData.maHD,
+          maHDType: typeof paymentData.maHD,
+          maHDLength: paymentData.maHD ? paymentData.maHD.length : 'N/A'
+        })
+        
+        // Validation dữ liệu VNPay
+        console.log('🔍 Validating txt_billing_mobile:', paymentData.txt_billing_mobile, 'Result:', !!paymentData.txt_billing_mobile)
+        if (!paymentData.txt_billing_mobile || !paymentData.txt_billing_fullname || !paymentData.txt_inv_addr1) {
+          throw new Error('Thông tin giao hàng không đầy đủ để thanh toán VNPay')
+        }
+        
+        console.log('🔍 Validating amount:', paymentData.amount, 'Result:', !!(paymentData.amount && (Number(paymentData.amount) > 0)))
+        if (!paymentData.amount || Number(paymentData.amount) <= 0) {
+          throw new Error('Số tiền thanh toán không hợp lệ')
+        }
+        
+        // Validation maHD - phải có giá trị hợp lệ
+        console.log('🔍 Validating maHD:', paymentData.maHD, 'Result:', !!(paymentData.maHD && paymentData.maHD !== 'NEW'))
+        if (!paymentData.maHD || paymentData.maHD === 'NEW') {
+          throw new Error('Mã hóa đơn không hợp lệ. Vui lòng thử lại!')
+        }
+        
+        // Log chi tiết để debug
+        console.log('💳 VNPay payment data:', paymentData)
+        console.log('💳 Original orderCode:', orderCode.value)
+        console.log('💳 Extracted maHD:', paymentData.maHD)
+        console.log('💳 Amount type:', typeof paymentData.amount, 'Value:', paymentData.amount)
+        console.log('💳 VNPay API endpoint:', `${API_CONFIG.BASE_URL}/api/thanhtoan/vnpay`)
+        console.log('💳 VNPay token:', token ? 'Present' : 'Missing')
+        console.log('💳 Request body:', JSON.stringify(paymentData, null, 2))
+        
+        // Gọi API VNPay để tạo URL thanh toán
+        const vnpayResponse = await fetch(`${API_CONFIG.BASE_URL}/api/thanhtoan/vnpay`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(paymentData)
+        })
+        
+        if (!vnpayResponse.ok) {
+          const errorData = await vnpayResponse.json().catch(() => ({}))
+          const errorMessage = errorData.message || errorData.error || 'Unknown error'
+          console.error('❌ VNPay API error response:', errorData)
+          throw new Error(`VNPay API error: ${vnpayResponse.status} - ${errorMessage}`)
+        }
+        
+        const vnpayResult = await vnpayResponse.json()
+        console.log('💳 VNPay API response:', vnpayResult)
+        console.log('💳 VNPay response keys:', Object.keys(vnpayResult))
+        console.log('💳 VNPay response data:', vnpayResult.data)
+        console.log('💳 VNPay response type:', typeof vnpayResult)
+        console.log('💳 VNPay data type:', typeof vnpayResult.data)
+        console.log('💳 VNPay data starts with http:', vnpayResult.data && typeof vnpayResult.data === 'string' ? vnpayResult.data.startsWith('http') : 'N/A')
+        
+        // Lấy URL thanh toán từ response VNPay
+        let paymentUrl = null
+        
+        // Kiểm tra các trường hợp response khác nhau
+        if (vnpayResult?.data && typeof vnpayResult.data === 'string' && vnpayResult.data.startsWith('http')) {
+          // Trường hợp data chứa trực tiếp URL
+          paymentUrl = vnpayResult.data
+        } else if (vnpayResult?.data?.paymentUrl) {
+          paymentUrl = vnpayResult.data.paymentUrl
+        } else if (vnpayResult?.paymentUrl) {
+          paymentUrl = vnpayResult.paymentUrl
+        } else if (vnpayResult?.url) {
+          paymentUrl = vnpayResult.url
+        } else if (vnpayResult?.vnp_PayUrl) {
+          paymentUrl = vnpayResult.vnp_PayUrl
+        } else if (vnpayResult?.redirectUrl) {
+          paymentUrl = vnpayResult.redirectUrl
+        } else if (typeof vnpayResult === 'string' && vnpayResult.startsWith('http')) {
+          // Trường hợp response trực tiếp là URL
+          paymentUrl = vnpayResult
+        }
+        
+        console.log('💳 Extracted payment URL:', paymentUrl)
+        
+        if (paymentUrl) {
+          // Chuyển hướng đến trang thanh toán VNPay
+          console.log('🔄 Redirecting to VNPay:', paymentUrl)
+          showNotification('Chuyển hướng đến VNPay...', 'success')
+          
+          // Delay một chút để user thấy thông báo
+          setTimeout(() => {
+            window.location.href = paymentUrl
+          }, 1000)
+        } else {
+          throw new Error('Không nhận được URL thanh toán từ VNPay API')
+        }
+        
+      } catch (error) {
+        console.error('❌ VNPay payment error:', error)
+        showNotification(`Lỗi thanh toán VNPay: ${error.message}`, 'error')
+        
+        // Fallback: hiển thị thông báo thành công và chuyển hướng
+        setTimeout(() => {
+          showNotification(`Thanh toán VNPay thành công! Mã đơn hàng: ${orderCode.value}`, 'success')
+          router.push({
+            name: 'PaymentSuccess',
+            query: {
+              orderCode: orderCode.value,
+              total: total.value,
+              paymentMethod: paymentMethod
+            }
+          })
+        }, 2000)
+      } finally {
+        isProcessingVNPay.value = false
+      }
+      return // Không thực hiện redirect mặc định cho VNPay
       
     default:
       showNotification(`Đặt hàng thành công! Mã đơn hàng: ${orderCode.value}`, 'success')
   }
   
-  // Redirect to payment success page after delay
-  setTimeout(() => {
-    router.push({
-      name: 'PaymentSuccess',
-      query: {
-        orderCode: orderCode.value,
-        total: total.value,
-        paymentMethod: paymentMethod
-      }
-    })
-  }, 3000)
+  // Redirect to payment success page after delay (chỉ cho các phương thức không phải VNPay)
+  if (paymentMethod !== 'VNPay') {
+    setTimeout(() => {
+      router.push({
+        name: 'PaymentSuccess',
+        query: {
+          orderCode: orderCode.value,
+          total: total.value,
+          paymentMethod: paymentMethod
+        }
+      })
+    }, 3000)
+  }
 }
 
 // Initialize

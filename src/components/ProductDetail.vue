@@ -340,12 +340,7 @@
       </div>
     </div>
 
-    <!-- Coupon Button Widget -->
-    <CouponButtonWidget 
-      :show-on-scroll="true"
-      :scroll-threshold="300"
-      @coupon-copied="handleCouponCopied"
-    />
+
 
   </div>
 </template>
@@ -381,7 +376,7 @@ import '../assets/styles.css'
 import ProductCard from './ProductCard.vue'
 import ProductReviews from './ProductReviews.vue'
 import WriteReview from './WriteReview.vue'
-import CouponButtonWidget from './CouponButtonWidget.vue'
+
 
 // ==================== PROPS & EMITS ====================
 // Props nhận từ parent component
@@ -555,10 +550,7 @@ onMounted(async () => {
   }
 })
 
-// ==================== COUPON METHODS ====================
-const handleCouponCopied = (couponCode) => {
-  showNotification(`Đã copy mã khuyến mãi: ${couponCode}`, 'success')
-}
+
 </script>
 
 <style scoped>
