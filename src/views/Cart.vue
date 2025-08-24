@@ -465,6 +465,7 @@ const checkout = async () => {
         tongTien: result.result?.tongTien,
         ngayLap: result.result?.ngayLap,
         trangThai: result.result?.trangThai
+        // Thông tin coupon sẽ được thêm trong Checkout.vue khi user áp dụng
       }
       
       // Lưu vào localStorage để Checkout.vue có thể sử dụng

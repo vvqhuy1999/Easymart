@@ -32,33 +32,35 @@
                   <span :class="getBadgeClass('pending')">{{ orderCounts.pending }}</span>
                 </button>
               </li>
-              <li class="nav-item">
-                <button 
-                  :class="getTabClass('paid')"
-                  @click="setActiveTab('paid')"
-                >
-                  <i class="fas fa-check-circle me-2"></i>Đã thanh toán
-                  <span :class="getBadgeClass('paid')">{{ orderCounts.paid }}</span>
-                </button>
-              </li>
-              <li class="nav-item">
-                <button 
-                  :class="getTabClass('completed')"
-                  @click="setActiveTab('completed')"
-                >
-                  <i class="fas fa-shipping-fast me-2"></i>Hoàn thành
-                  <span :class="getBadgeClass('completed')">{{ orderCounts.completed }}</span>
-                </button>
-              </li>
-              <li class="nav-item">
-                <button 
-                  :class="getTabClass('cancelled')"
-                  @click="setActiveTab('cancelled')"
-                >
-                  <i class="fas fa-times-circle me-2"></i>Đã hủy
-                  <span :class="getBadgeClass('cancelled')">{{ orderCounts.cancelled }}</span>
-                </button>
-              </li>
+                             <li class="nav-item">
+                 <button 
+                   :class="getTabClass('paid')"
+                   @click="setActiveTab('paid')"
+                 >
+                   <i class="fas fa-check-circle me-2"></i>Đã thanh toán
+                   <span :class="getBadgeClass('paid')">{{ orderCounts.paid }}</span>
+                 </button>
+               </li>
+               
+               <li class="nav-item">
+                 <button 
+                   :class="getTabClass('completed')"
+                   @click="setActiveTab('completed')"
+                 >
+                   <i class="fas fa-shipping-fast me-2"></i>Hoàn thành
+                   <span :class="getBadgeClass('completed')">{{ orderCounts.completed }}</span>
+                 </button>
+               </li>
+
+               <li class="nav-item">
+                 <button 
+                   :class="getTabClass('cancelled')"
+                   @click="setActiveTab('cancelled')"
+                 >
+                   <i class="fas fa-times-circle me-2"></i>Đã hủy
+                   <span :class="getBadgeClass('cancelled')">{{ orderCounts.cancelled }}</span>
+                 </button>
+               </li>
             </ul>
           </div>
         </div>
@@ -111,22 +113,25 @@
             <div class="alert alert-info d-flex align-items-center">
               <i class="fas fa-info-circle me-2"></i>
               <span>
-                Hiển thị {{ filteredOrders.length }} đơn hàng 
+                Hiển thị {{ paginatedOrders.length }} / {{ filteredOrders.length }} đơn hàng 
                 <strong>{{ getTabTitle(activeTab) }}</strong>
+                <span v-if="totalPages > 1" class="ms-2">
+                  (Trang {{ currentPage }} / {{ totalPages }})
+                </span>
               </span>
             </div>
           </div>
           
           <!-- No orders in current tab -->
-          <div v-if="filteredOrders.length === 0" class="text-center py-5">
-            <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
-            <h4 class="text-muted">Không có đơn hàng {{ getTabTitle(activeTab).toLowerCase() }}</h4>
-            <p class="text-muted">
-              <span v-if="activeTab === 'pending'">Bạn chưa có đơn hàng nào đang chờ thanh toán.</span>
-              <span v-else-if="activeTab === 'paid'">Bạn chưa có đơn hàng nào đã thanh toán.</span>
-              <span v-else-if="activeTab === 'completed'">Bạn chưa có đơn hàng nào hoàn thành.</span>
-              <span v-else-if="activeTab === 'cancelled'">Bạn chưa có đơn hàng nào bị hủy.</span>
-            </p>
+                      <div v-if="filteredOrders.length === 0" class="text-center py-5">
+              <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+              <h4 class="text-muted">Không có đơn hàng {{ getTabTitle(activeTab).toLowerCase() }}</h4>
+              <p class="text-muted">
+                <span v-if="activeTab === 'pending'">Bạn chưa có đơn hàng nào đang chờ thanh toán.</span>
+                <span v-else-if="activeTab === 'paid'">Bạn chưa có đơn hàng nào đã thanh toán.</span>
+                <span v-else-if="activeTab === 'completed'">Bạn chưa có đơn hàng nào hoàn thành.</span>
+                <span v-else-if="activeTab === 'cancelled'">Bạn chưa có đơn hàng nào bị hủy.</span>
+              </p>
             <button 
               @click="setActiveTab('pending')" 
               class="btn btn-outline-primary"
@@ -138,7 +143,7 @@
           <!-- Orders List -->
           <div v-else class="orders-list">
             <div 
-              v-for="(order, index) in filteredOrders" 
+              v-for="(order, index) in paginatedOrders" 
               :key="order.maHD" 
               class="order-card mb-4"
             >
@@ -230,20 +235,34 @@
                       
                       <div class="summary-item d-flex justify-content-between mb-2">
                         <span>Tổng tiền hàng:</span>
-                        <span>{{ formatCurrency(order.tongTienHang) }}</span>
+                        <span>{{ formatCurrency(order.tongTienHang || order.tongTien) }}</span>
                       </div>
                       
+                      <!-- Hiển thị mã khuyến mãi nếu có -->
+                      <div v-if="order.coupon || order.maKM" class="summary-item d-flex justify-content-between mb-2 text-info">
+                        <span>Mã khuyến mãi:</span>
+                        <span>{{ order.coupon?.code || order.maKM || 'N/A' }}</span>
+                      </div>
+                      
+                      <!-- Hiển thị giảm giá nếu có -->
                       <div v-if="order.tienGiamGia > 0" class="summary-item d-flex justify-content-between mb-2 text-success">
                         <span>Giảm giá:</span>
                         <span>-{{ formatCurrency(order.tienGiamGia) }}</span>
                       </div>
                       
+                      <!-- Hiển thị thông tin khuyến mãi chi tiết nếu có -->
                       <div v-if="order.khuyenMai" class="summary-item d-flex justify-content-between mb-2 text-info">
-                        <span>Khuyến mãi:</span>
-                        <span>{{ order.khuyenMai.tenChuongTrinh }}</span>
+                        <span>Chương trình:</span>
+                        <span>{{ order.khuyenMai.tenChuongTrinh || order.khuyenMai.moTa || 'Khuyến mãi' }}</span>
                       </div>
                       
                       <hr>
+                      
+                      <!-- Hiển thị tổng tiền sau giảm giá nếu khác với tổng tiền gốc -->
+                      <div v-if="order.tongTienSauGiamGia && order.tongTienSauGiamGia !== order.tongTien" class="summary-item d-flex justify-content-between mb-2 text-warning">
+                        <span>Tổng sau giảm giá:</span>
+                        <span>{{ formatCurrency(order.tongTienSauGiamGia) }}</span>
+                      </div>
                       
                       <div class="summary-item d-flex justify-content-between mb-2 fw-bold">
                         <span>Tổng thanh toán:</span>
@@ -304,6 +323,58 @@
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+          
+          <!-- Pagination -->
+          <div v-if="totalPages > 1" class="pagination-section mt-4">
+            <nav aria-label="Orders pagination">
+              <ul class="pagination justify-content-center">
+                <!-- Previous button -->
+                <li class="page-item" :class="{ disabled: currentPage === 1 }">
+                  <button 
+                    class="page-link" 
+                    @click="goToPage(currentPage - 1)"
+                    :disabled="currentPage === 1"
+                  >
+                    <i class="fas fa-chevron-left"></i>
+                  </button>
+                </li>
+                
+                <!-- Page numbers -->
+                <li 
+                  v-for="page in visiblePages" 
+                  :key="page"
+                  class="page-item"
+                  :class="{ active: page === currentPage }"
+                >
+                  <button 
+                    class="page-link" 
+                    @click="goToPage(page)"
+                  >
+                    {{ page }}
+                  </button>
+                </li>
+                
+                <!-- Next button -->
+                <li class="page-item" :class="{ disabled: currentPage === totalPages }">
+                  <button 
+                    class="page-link" 
+                    @click="goToPage(currentPage + 1)"
+                    :disabled="currentPage === totalPages"
+                  >
+                    <i class="fas fa-chevron-right"></i>
+                  </button>
+                </li>
+              </ul>
+            </nav>
+            
+            <!-- Page info -->
+            <div class="text-center mt-2">
+              <small class="text-muted">
+                Trang {{ currentPage }} / {{ totalPages }} 
+                ({{ paginatedOrders.length }} đơn hàng)
+              </small>
             </div>
           </div>
         </div>
@@ -453,7 +524,7 @@ const filteredOrders = computed(() => {
   }
 })
 
-// Order counts for each status
+// Order counts for each status (bao gồm completed)
 const orderCounts = computed(() => {
   if (!orders.value || orders.value.length === 0) {
     return { pending: 0, paid: 0, completed: 0, cancelled: 0 }
@@ -474,7 +545,55 @@ const orderCounts = computed(() => {
   return counts
 })
 
+// Pagination logic
+const itemsPerPage = 4 // Hiển thị 4 đơn hàng mỗi trang
+const currentPage = ref(1)
+
+const totalPages = computed(() => {
+  return Math.ceil(filteredOrders.value.length / itemsPerPage)
+})
+
+const paginatedOrders = computed(() => {
+  const startIndex = (currentPage.value - 1) * itemsPerPage
+  const endIndex = startIndex + itemsPerPage
+  return filteredOrders.value.slice(startIndex, endIndex)
+})
+
+const visiblePages = computed(() => {
+  const pages = []
+  const maxVisiblePages = 5
+  
+  if (totalPages.value <= maxVisiblePages) {
+    // Hiển thị tất cả các trang nếu ít hơn maxVisiblePages
+    for (let i = 1; i <= totalPages.value; i++) {
+      pages.push(i)
+    }
+  } else {
+    // Logic để hiển thị trang hiện tại và các trang xung quanh
+    const startPage = Math.max(1, currentPage.value - Math.floor(maxVisiblePages / 2))
+    const endPage = Math.min(totalPages.value, startPage + maxVisiblePages - 1)
+    
+    for (let i = startPage; i <= endPage; i++) {
+      pages.push(i)
+    }
+  }
+  
+  return pages
+})
+
 // ==================== METHODS ====================
+// Pagination methods
+const goToPage = (page) => {
+  if (page >= 1 && page <= totalPages.value) {
+    currentPage.value = page
+    // Scroll to top of orders list
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+}
+
+const resetPagination = () => {
+  currentPage.value = 1
+}
 /**
  * Helper function để extract maKH từ response data
  */
@@ -783,6 +902,8 @@ const refreshOrders = async () => {
  */
 const setActiveTab = (tab) => {
   activeTab.value = tab
+  // Reset phân trang khi chuyển tab
+  resetPagination()
 }
 
 /**
@@ -847,7 +968,13 @@ const checkoutOrder = async (orderId) => {
         tongTien: order.tongTien,
         chiTietHoaDon: order.chiTietHoaDon || order.chiTietList || [],
         timestamp: new Date().toISOString(),
-        source: 'orders-page'
+        source: 'orders-page',
+        // Thêm thông tin coupon nếu có
+        coupon: order.coupon || null,
+        // Thêm thông tin giảm giá
+        tienGiamGia: order.tienGiamGia || 0,
+        // Cập nhật tổng tiền sau khi áp dụng coupon
+        tongTienSauGiamGia: order.tongTienSauGiamGia || order.tongTien
       }
       
       // Tạo selected items từ chi tiết hóa đơn
@@ -1256,6 +1383,49 @@ onUnmounted(() => {
     min-width: 1.2rem;
     height: 1.2rem;
   }
+}
+
+/* Pagination styles */
+.pagination-section {
+  margin-top: 2rem;
+}
+
+.pagination .page-link {
+  color: #007bff;
+  border: 1px solid #dee2e6;
+  padding: 0.5rem 0.75rem;
+  margin: 0 2px;
+  border-radius: 5px;
+  transition: all 0.3s ease;
+}
+
+.pagination .page-link:hover {
+  background-color: #007bff;
+  color: white;
+  border-color: #007bff;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 123, 255, 0.3);
+}
+
+.pagination .page-item.active .page-link {
+  background-color: #007bff;
+  border-color: #007bff;
+  color: white;
+  box-shadow: 0 4px 8px rgba(0, 123, 255, 0.3);
+}
+
+.pagination .page-item.disabled .page-link {
+  color: #6c757d;
+  background-color: #fff;
+  border-color: #dee2e6;
+  cursor: not-allowed;
+}
+
+.pagination .page-item.disabled .page-link:hover {
+  background-color: #fff;
+  color: #6c757d;
+  transform: none;
+  box-shadow: none;
 }
 
 @media (max-width: 576px) {

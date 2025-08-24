@@ -29,8 +29,19 @@
                   <span class="value">{{ formatPrice(orderTotal) }}</span>
                 </div>
                 <div class="payment-method">
-                  <span class="label">Phương thức:</span>
-                  <span class="value">{{ getPaymentMethodName(paymentMethod) }}</span>
+                  <span class="label">Phương thức thanh toán:</span>
+                  <span class="value payment-method-value">
+                    <i :class="getPaymentMethodIcon(paymentMethod)" class="me-2"></i>
+                    {{ getPaymentMethodName(paymentMethod) }}
+                  </span>
+                </div>
+                <div v-if="orderDetails?.customer" class="customer-info">
+                  <span class="label">Khách hàng:</span>
+                  <span class="value">{{ orderDetails.customer.fullName || orderDetails.customer.name }}</span>
+                </div>
+                <div v-if="orderDetails?.customer?.phone" class="customer-phone">
+                  <span class="label">Số điện thoại:</span>
+                  <span class="value">{{ orderDetails.customer.phone }}</span>
                 </div>
               </div>
 
@@ -116,7 +127,38 @@
               Chi tiết đơn hàng
             </h5>
             
-            <div class="order-items">
+            <!-- Customer Information -->
+            <div v-if="orderDetails.customer" class="customer-details mb-4">
+              <h6 class="section-title">
+                <i class="fas fa-user me-2"></i>
+                Thông tin khách hàng
+              </h6>
+              <div class="customer-grid">
+                <div class="customer-field">
+                  <span class="field-label">Họ và tên:</span>
+                  <span class="field-value">{{ orderDetails.customer.fullName || orderDetails.customer.name }}</span>
+                </div>
+                <div class="customer-field">
+                  <span class="field-label">Số điện thoại:</span>
+                  <span class="field-value">{{ orderDetails.customer.phone }}</span>
+                </div>
+                <div class="customer-field">
+                  <span class="field-label">Email:</span>
+                  <span class="field-value">{{ orderDetails.customer.email || 'Không có' }}</span>
+                </div>
+                <div class="customer-field full-width">
+                  <span class="field-label">Địa chỉ giao hàng:</span>
+                  <span class="field-value">{{ orderDetails.customer.address }}</span>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Order Items -->
+            <div class="order-items mb-4">
+              <h6 class="section-title">
+                <i class="fas fa-shopping-bag me-2"></i>
+                Sản phẩm đã đặt
+              </h6>
               <div 
                 v-for="item in orderDetails.items" 
                 :key="item.productId"
@@ -137,18 +179,56 @@
               </div>
             </div>
 
+            <!-- Order Summary -->
             <div class="order-summary">
+              <h6 class="section-title">
+                <i class="fas fa-calculator me-2"></i>
+                Tổng kết đơn hàng
+              </h6>
               <div class="summary-row">
-                <span>Tạm tính:</span>
+                <span>Tạm tính ({{ orderDetails.summary?.itemsCount || 0 }} sản phẩm):</span>
                 <span>{{ formatPrice(orderDetails.summary?.subtotal || 0) }}</span>
               </div>
-              <div class="summary-row">
-                <span>Phí vận chuyển:</span>
-                <span>{{ orderDetails.summary?.shippingFee === 0 ? 'Miễn phí' : formatPrice(orderDetails.summary?.shippingFee || 0) }}</span>
+              
+              <!-- Coupon Discount -->
+              <div v-if="orderDetails.coupon" class="summary-row discount">
+                <span>Giảm giá ({{ orderDetails.coupon.code }}):</span>
+                <span class="text-success">-{{ formatPrice(orderDetails.coupon.discountValue || 0) }}</span>
               </div>
+              
+              <!-- Transaction Fee -->
+              <div v-if="orderDetails.summary?.transactionFee > 0" class="summary-row">
+                <span>Phí giao dịch:</span>
+                <span>{{ formatPrice(orderDetails.summary.transactionFee) }}</span>
+              </div>
+              
               <div class="summary-row total">
                 <span>Tổng cộng:</span>
                 <span>{{ formatPrice(orderDetails.summary?.total || 0) }}</span>
+              </div>
+            </div>
+            
+            <!-- Payment Information -->
+            <div v-if="orderDetails.paymentMethod" class="payment-details mt-4">
+              <h6 class="section-title">
+                <i class="fas fa-credit-card me-2"></i>
+                Thông tin thanh toán
+              </h6>
+              <div class="payment-info">
+                <div class="payment-field">
+                  <span class="field-label">Phương thức:</span>
+                  <span class="field-value">
+                    <i :class="getPaymentMethodIcon(orderDetails.paymentMethod)" class="me-2"></i>
+                    {{ getPaymentMethodName(orderDetails.paymentMethod) }}
+                  </span>
+                </div>
+                <div class="payment-field">
+                  <span class="field-label">Trạng thái:</span>
+                  <span class="field-value text-success">
+                    <i class="fas fa-check-circle me-1"></i>
+                    Đã thanh toán
+                  </span>
+                </div>
               </div>
             </div>
           </div>
@@ -183,6 +263,19 @@ onMounted(() => {
     orderCode.value = route.query.orderCode
     orderTotal.value = parseInt(route.query.total) || 0
     paymentMethod.value = route.query.paymentMethod || 'cod'
+    
+    // Try to get full order details from localStorage
+    const lastOrder = localStorage.getItem('easymart-last-order')
+    if (lastOrder) {
+      const order = JSON.parse(lastOrder)
+      if (order.orderCode === route.query.orderCode) {
+        orderDetails.value = order
+        // Update payment method from order details if available
+        if (order.paymentMethod) {
+          paymentMethod.value = order.paymentMethod
+        }
+      }
+    }
   } else {
     // Try to get from localStorage
     const lastOrder = localStorage.getItem('easymart-last-order')
@@ -190,7 +283,7 @@ onMounted(() => {
       const order = JSON.parse(lastOrder)
       orderCode.value = order.orderCode
       orderTotal.value = order.summary?.total || 0
-      paymentMethod.value = order.customer?.paymentMethod || 'cod'
+      paymentMethod.value = order.paymentMethod || order.customer?.paymentMethod || 'cod'
       orderDetails.value = order
     } else {
       // No order found, redirect to home
@@ -198,6 +291,13 @@ onMounted(() => {
       router.push('/')
     }
   }
+  
+  console.log('📋 PaymentSuccess mounted with:', {
+    orderCode: orderCode.value,
+    orderTotal: orderTotal.value,
+    paymentMethod: paymentMethod.value,
+    orderDetails: orderDetails.value
+  })
 })
 
 // Methods
@@ -208,14 +308,38 @@ const getPaymentMethodName = (method) => {
     'qr': 'Quét mã QR',
     'momo': 'Ví MoMo',
     'vnpay': 'VNPay',
-    'zalopay': 'ZaloPay'
+    'zalopay': 'ZaloPay',
+    'Tiền Mặt': 'Thanh toán khi nhận hàng (COD)',
+    'Chuyển Khoản': 'Chuyển khoản ngân hàng',
+    'MoMo': 'Ví MoMo',
+    'ZaloPay': 'ZaloPay',
+    'Thẻ Tín Dụng': 'Thẻ tín dụng',
+    'VNPay': 'VNPay'
   }
-  return methods[method] || 'Khác'
+  return methods[method] || method || 'Khác'
+}
+
+const getPaymentMethodIcon = (method) => {
+  const iconMap = {
+    'cod': 'fas fa-hand-holding-usd text-success',
+    'banking': 'fas fa-university text-primary',
+    'qr': 'fas fa-qrcode text-info',
+    'momo': 'fas fa-mobile-alt text-danger',
+    'vnpay': 'fas fa-credit-card text-info',
+    'zalopay': 'fas fa-comment text-warning',
+    'Tiền Mặt': 'fas fa-hand-holding-usd text-success',
+    'Chuyển Khoản': 'fas fa-university text-primary',
+    'MoMo': 'fas fa-mobile-alt text-danger',
+    'ZaloPay': 'fas fa-comment text-warning',
+    'Thẻ Tín Dụng': 'fas fa-credit-card text-info',
+    'VNPay': 'fas fa-credit-card text-info'
+  }
+  return iconMap[method] || 'fas fa-credit-card text-secondary'
 }
 
 const viewOrderHistory = () => {
-  // In real app, navigate to order history page
-  showNotification('Tính năng xem lịch sử đơn hàng đang được phát triển', 'info')
+  // Navigate to Orders page
+  router.push('/orders')
 }
 
 const shareToFacebook = () => {
@@ -432,6 +556,70 @@ const shareToZalo = () => {
   margin-bottom: 25px;
   padding-bottom: 15px;
   border-bottom: 2px solid #f8f9fa;
+}
+
+.section-title {
+  color: #2c3e50;
+  font-weight: 600;
+  margin-bottom: 15px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.customer-details {
+  background: #f8f9fa;
+  border-radius: 10px;
+  padding: 20px;
+}
+
+.customer-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 15px;
+}
+
+.customer-field.full-width {
+  grid-column: 1 / -1;
+}
+
+.field-label {
+  font-weight: 500;
+  color: #6c757d;
+  display: block;
+  margin-bottom: 5px;
+}
+
+.field-value {
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+.payment-method-value {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.payment-details {
+  background: #f8f9fa;
+  border-radius: 10px;
+  padding: 20px;
+}
+
+.payment-info {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 15px;
+}
+
+.payment-field {
+  display: flex;
+  flex-direction: column;
+}
+
+.summary-row.discount {
+  color: #28a745;
+  font-weight: 600;
 }
 
 .order-item {

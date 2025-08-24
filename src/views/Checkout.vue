@@ -30,17 +30,6 @@
           <i class="fas fa-credit-card text-primary me-2"></i>
           {{ isSingleProductCheckout ? 'Thanh toán mua ngay' : 'Thanh toán đơn hàng' }}
         </h2>
-        
-        <!-- Debug buttons -->
-        <div class="d-flex gap-2">
-          <button 
-            @click="debugLocalStorageData" 
-            class="btn btn-outline-warning btn-sm"
-            title="Debug localStorage data"
-          >
-            <i class="fas fa-bug me-1"></i>Debug Data
-          </button>
-        </div>
       </div>
 
       <!-- Checkout Content -->
@@ -218,8 +207,9 @@
                       type="radio" 
                       name="paymentMethod" 
                       id="cod"
-                      value="cod"
+                      value="Tiền Mặt"
                       v-model="orderForm.paymentMethod"
+                      checked
                     >
                     <label class="form-check-label w-100" for="cod">
                       <div class="d-flex align-items-center">
@@ -371,23 +361,6 @@
                     <span>Giảm giá ({{ appliedCoupon?.code }}):</span>
                     <span>-{{ formatPrice(couponDiscount) }}</span>
                   </div>
-
-                  <!-- Available Coupons -->
-                  <div v-if="!appliedCoupon && availableCoupons.length > 0" class="available-coupons mt-2">
-                    <small class="text-muted d-block mb-2">Mã khuyến mãi có sẵn:</small>
-                    <div class="d-flex flex-wrap gap-1">
-                      <button 
-                        v-for="coupon in availableCoupons" 
-                        :key="coupon.code"
-                        class="btn btn-sm"
-                        style="background: linear-gradient(135deg, #667eea, #764ba2); color: white; border: none;"
-                        @click="selectCoupon(coupon.code)"
-                        :title="coupon.description"
-                      >
-                        {{ coupon.code }}
-                      </button>
-                    </div>
-                  </div>
                 </div>
 
                 <hr>
@@ -471,34 +444,130 @@ import { useEasyMart } from '../composables/useEasyMart'
 import { useCart } from '../composables/useCart'
 import { useAuth } from '../composables/useAuth'
 import { API_CONFIG, API_ENDPOINTS } from '../config/api.js'
+import { getToken } from '../utils/tokenStorage.js'
 
 // Router
 const router = useRouter()
+
+// ==================== UTILITY FUNCTIONS ====================
+// Decode JWT token to get user info
+const decodeToken = (token) => {
+  try {
+    if (!token) return null
+    const payload = JSON.parse(atob(token.split('.')[1]))
+    return {
+      email: payload.sub, // sub chính là email
+      issuer: payload.iss,
+      role: payload.role,
+      exp: payload.exp,
+      iat: payload.iat,
+      raw: payload
+    }
+  } catch (error) {
+    console.error('Error decoding token:', error)
+    return null
+  }
+}
+
+/**
+ * Helper function để extract maKH từ response data
+ */
+const extractMaKH = (data, source) => {
+  if (data?.maKH) {
+    return data.maKH
+  } else if (data?.customer?.maKH) {
+    return data.customer.maKH
+  } else if (data?.result?.maKH) {
+    return data.result.maKH
+  } else if (data?.data?.maKH) {
+    return data.data.maKH
+  } else {
+    return null
+  }
+}
+
+/**
+ * Lấy maKH từ API như trong Orders.vue
+ */
+const getMaKHFromAPI = async () => {
+  try {
+    console.log('🔍 === GETTING MAKH FROM API (Checkout) ===')
+    
+    // Sử dụng cùng cách như cart để lấy thông tin user đầy đủ
+    const token = getToken()
+    if (!token) {
+      console.log('❌ No token available')
+      return null
+    }
+    
+    // Bước 1: Lấy thông tin user từ token (decode JWT)
+    const tokenData = decodeToken(token)
+    if (!tokenData?.email) {
+      console.log('❌ No email found in token')
+      return null
+    }
+    
+    const userEmail = tokenData.email
+    console.log('📧 User email from token:', userEmail)
+    
+    // Bước 2: Lấy maNguoiDung từ email API
+    console.log('👤 Step 1: Getting maNguoiDung from email API...')
+    const userResponse = await fetch(`${API_CONFIG.BASE_URL}/api/nguoidung/email/${encodeURIComponent(userEmail)}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      credentials: 'include'
+    })
+    
+    if (!userResponse.ok) {
+      console.log('⚠️ User email API failed with status:', userResponse.status)
+      return null
+    }
+    
+    const userInfo = await userResponse.json()
+    const realUserId = userInfo.maNguoiDung
+    console.log('✅ Got real maNguoiDung:', realUserId)
+    
+    // Bước 3: Sử dụng maNguoiDung để lấy customer info
+    console.log('👤 Step 2: Getting customer info with maNguoiDung...')
+    const customerResponse = await fetch(`${API_CONFIG.BASE_URL}/api/khachhang/by-nguoidung/${realUserId}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      credentials: 'include'
+    })
+    
+    if (!customerResponse.ok) {
+      console.log('⚠️ Customer API failed with status:', customerResponse.status)
+      return null
+    }
+    
+    const customerData = await customerResponse.json()
+    console.log('✅ Customer data from API:', customerData)
+    
+    const maKH = extractMaKH(customerData, 'Customer API')
+    if (maKH) {
+      console.log('✅ Found maKH from API:', maKH)
+      return maKH
+    }
+    
+    console.log('❌ No maKH found in customer data')
+    return null
+    
+  } catch (err) {
+    console.error('❌ Error getting maKH from API:', err)
+    return null
+  }
+}
 
 // Composables
 const { formatPrice, showNotification, products } = useEasyMart()
 const { cart, clearCart } = useCart()
 const { user, isLoggedIn } = useAuth()
-
-// Debug function để kiểm tra localStorage data
-const debugLocalStorageData = () => {
-  console.log('🔍 Debug LocalStorage Data:')
-  console.log('   - easymart-invoice:', localStorage.getItem('easymart-invoice'))
-  console.log('   - easymart-selected-items:', localStorage.getItem('easymart-selected-items'))
-  console.log('   - easymart-cart:', localStorage.getItem('easymart-cart'))
-  
-  try {
-    const invoice = JSON.parse(localStorage.getItem('easymart-invoice') || 'null')
-    if (invoice) {
-      console.log('   - Invoice parsed:', invoice)
-      console.log('   - Invoice keys:', Object.keys(invoice))
-      console.log('   - chiTietHoaDon:', invoice.chiTietHoaDon)
-      console.log('   - items:', invoice.items)
-    }
-  } catch (e) {
-    console.error('   - Error parsing invoice:', e)
-  }
-}
 
 // Helper function để lấy hình ảnh sản phẩm
 const getProductImage = (productId) => {
@@ -511,50 +580,49 @@ const getProductImage = (productId) => {
   return imageUrls[0] ? `${API_CONFIG.BASE_URL}${imageUrls[0]}` : '/placeholder-image.jpg'
 }
 
-// Helper function để kiểm tra trạng thái auth
-const checkAuthStatus = () => {
-  console.log('🔐 Checking auth status...')
-  console.log('   - isLoggedIn:', isLoggedIn)
-  console.log('   - user:', user)
-  console.log('   - orderForm:', orderForm)
-  
-  if (isLoggedIn && typeof isLoggedIn.value !== 'undefined') {
-    console.log('✅ isLoggedIn is properly initialized')
-  } else {
-    console.log('❌ isLoggedIn is not properly initialized')
-  }
-  
-  if (user && typeof user.value !== 'undefined') {
-    console.log('✅ user is properly initialized')
-  } else {
-    console.log('❌ user is not properly initialized')
-  }
-}
+
 
 // Helper function để pre-fill thông tin người dùng
 const prefillUserInfo = async () => {
   try {
-    // Kiểm tra an toàn các giá trị
-    if (!isLoggedIn || !isLoggedIn.value) {
-      console.log('⚠️ User chưa đăng nhập hoặc isLoggedIn undefined')
-      
-      // Fallback: thử lấy thông tin từ localStorage
+    // Kiểm tra xem có đăng nhập thực sự không
+    const token = getToken()
+    if (!token) {
+      console.log('⚠️ No token found, user not logged in')
       tryFallbackUserInfo()
       return
     }
     
-    if (!user || !user.value) {
-      console.log('⚠️ User object chưa sẵn sàng hoặc user undefined')
-      
-      // Fallback: thử lấy thông tin từ localStorage
-      tryFallbackUserInfo()
-      return
+    console.log('👤 Pre-filling user info...')
+    
+    // Đảm bảo có maKH trước khi fetch shipping info
+    let maKH = cart?.maKH || 
+                user.value?.customerInfo?.maKH || 
+                user.value?.maKH ||
+                user.value?.khachHang?.maKH
+    
+    if (!maKH) {
+      console.log('🔍 No maKH found, getting from API first...')
+      const realMaKH = await getMaKHFromAPI()
+      if (realMaKH) {
+        maKH = realMaKH
+        // Cập nhật user state
+        if (user.value) {
+          if (!user.value.customerInfo) user.value.customerInfo = {}
+          user.value.customerInfo.maKH = realMaKH
+          user.value.maKH = realMaKH
+          user.value.khachHang = { maKH: realMaKH }
+        }
+        console.log('✅ Got maKH from API, now fetching shipping info')
+      } else {
+        console.log('❌ Could not get maKH, using fallback')
+        tryFallbackUserInfo()
+        return
+      }
     }
     
-    console.log('👤 Pre-filling user info:', user.value)
-    
-    // Lấy thông tin giao hàng từ API Profile
-    await fetchShippingInfoFromProfile()
+    // Lấy thông tin giao hàng từ Shipping API riêng biệt
+    await fetchShippingInfoFromAPI()
     
     // Điền thông tin từ user profile
     if (user.value.name) {
@@ -629,10 +697,10 @@ const tryFallbackUserInfo = () => {
   }
 }
 
-// Function để lấy thông tin giao hàng từ Profile API
+// Function để lấy thông tin giao hàng từ Shipping API
 const fetchShippingInfoFromProfile = async () => {
   try {
-    console.log('📡 Fetching shipping info from Profile API...')
+    console.log('📡 Fetching shipping info from Shipping API...')
     isSyncingWithProfile.value = true
     
     // Lấy maKH từ user state
@@ -649,9 +717,9 @@ const fetchShippingInfoFromProfile = async () => {
       return
     }
     
-    // Gọi API để lấy thông tin profile
-    const infoEndpoint = `${API_CONFIG.BASE_URL}/api/khachhang/${maKH}/info`
-    console.log('🔗 Fetching from endpoint:', infoEndpoint)
+    // Gọi API mới để lấy thông tin shipping
+    const infoEndpoint = `${API_CONFIG.BASE_URL}/api/khachhang/${maKH}/shipping-info`
+    console.log('🔗 Fetching from Shipping API endpoint:', infoEndpoint)
     
     const infoResponse = await fetch(infoEndpoint, {
       method: 'GET',
@@ -662,12 +730,12 @@ const fetchShippingInfoFromProfile = async () => {
     })
     
     if (!infoResponse.ok) {
-      console.log('⚠️ Profile API failed:', infoResponse.status)
+      console.log('⚠️ Shipping API failed:', infoResponse.status)
       return
     }
     
     const infoResult = await infoResponse.json()
-    console.log('📥 Profile API response:', infoResult)
+    console.log('📥 Shipping API response:', infoResult)
     
     // Xử lý response format khác nhau
     let customerData = null
@@ -683,7 +751,7 @@ const fetchShippingInfoFromProfile = async () => {
     }
     
     if (customerData) {
-      console.log('✅ Customer data received:', customerData)
+      console.log('✅ Shipping data received:', customerData)
       
       // Cập nhật user state với dữ liệu mới
       if (user.value?.customerInfo) {
@@ -695,19 +763,23 @@ const fetchShippingInfoFromProfile = async () => {
         orderForm.value.fullName = customerData.hoTen
       }
       
-      if (customerData.sdt) {
-        orderForm.value.phone = customerData.sdt
+      // Handle both sdt and soDienThoai field names
+      if (customerData.sdt || customerData.soDienThoai) {
+        orderForm.value.phone = customerData.sdt || customerData.soDienThoai
       }
       
       if (customerData.diaChi) {
         orderForm.value.address = customerData.diaChi
       }
       
-      if (customerData.nguoiDung?.email) {
+      // Handle email from multiple sources
+      if (customerData.email) {
+        orderForm.value.email = customerData.email
+      } else if (customerData.nguoiDung?.email) {
         orderForm.value.email = customerData.nguoiDung.email
       }
       
-      console.log('✅ Shipping info updated from Profile API')
+      console.log('✅ Shipping info updated from Shipping API')
     }
     
   } catch (error) {
@@ -717,20 +789,32 @@ const fetchShippingInfoFromProfile = async () => {
   }
 }
 
-// Function để cập nhật thông tin giao hàng vào Profile
-const updateShippingInfoToProfile = async () => {
+// Function để cập nhật thông tin giao hàng vào Shipping API
+const updateShippingInfoToAPI = async () => {
   try {
-    console.log('📤 Updating shipping info to Profile API...')
+    console.log('📤 Updating shipping info to Shipping API...')
     
-    // Lấy maKH từ user state
-    const maKH = user.value?.customerInfo?.maKH
+    // Tìm maKH từ các nguồn khác nhau - ưu tiên cart vì nó đang hoạt động
+    let maKH = cart?.maKH || 
+                user.value?.customerInfo?.maKH || 
+                user.value?.maKH ||
+                user.value?.khachHang?.maKH
+    
     if (!maKH) {
-      console.log('⚠️ No maKH found, cannot update shipping info')
-      return false
+      // Thử lấy từ API nếu không có
+      const realMaKH = await getMaKHFromAPI()
+      if (realMaKH) {
+        maKH = realMaKH
+        console.log('✅ Got maKH from API for update:', maKH)
+      } else {
+        console.log('⚠️ No maKH found, cannot update shipping info')
+        showNotification('Không thể xác định thông tin khách hàng!', 'error')
+        return false
+      }
     }
     
-    // Lấy token từ cookie
-    const token = getTokenFromCookie()
+    // Lấy token từ getToken function thay vì cookie
+    const token = getToken()
     if (!token) {
       console.log('⚠️ No token found, cannot update shipping info')
       return false
@@ -746,9 +830,9 @@ const updateShippingInfoToProfile = async () => {
     
     console.log('📤 Update data prepared:', updateData)
     
-    // Gọi API để cập nhật profile
-    const updateEndpoint = `${API_CONFIG.BASE_URL}/api/khachhang/${maKH}/update-info`
-    console.log('🔗 Update endpoint:', updateEndpoint)
+    // Gọi API mới cho Shipping Info
+    const updateEndpoint = `${API_CONFIG.BASE_URL}/api/khachhang/${maKH}/shipping-info`
+    console.log('🔗 Update Shipping API endpoint:', updateEndpoint)
     
     const updateResponse = await fetch(updateEndpoint, {
       method: 'PUT',
@@ -761,12 +845,12 @@ const updateShippingInfoToProfile = async () => {
     
     if (!updateResponse.ok) {
       const errorData = await updateResponse.json().catch(() => ({}))
-      console.log('⚠️ Update failed:', updateResponse.status, errorData.message)
+      console.log('⚠️ Shipping API update failed:', updateResponse.status, errorData.message)
       return false
     }
     
     const updateResult = await updateResponse.json()
-    console.log('📥 Update response:', updateResult)
+    console.log('📥 Shipping API update response:', updateResult)
     
     // Kiểm tra response format
     if (updateResult?.success || updateResult?.result?.success || updateResult?.message?.includes('thành công')) {
@@ -784,7 +868,7 @@ const updateShippingInfoToProfile = async () => {
       
       return true
     } else {
-      console.log('⚠️ Update response format unexpected:', updateResult)
+      console.log('⚠️ Shipping API update response format unexpected:', updateResult)
       return false
     }
     
@@ -794,10 +878,10 @@ const updateShippingInfoToProfile = async () => {
   }
 }
 
-// Function để lưu thông tin giao hàng vào Profile (gọi từ button)
-const saveShippingInfoToProfile = async () => {
+// Function để lưu thông tin giao hàng vào Shipping API (gọi từ button)
+const saveShippingInfoToAPI = async () => {
   try {
-    console.log('💾 Saving shipping info to Profile...')
+    console.log('💾 Saving shipping info to Shipping API...')
     
     // Validate form trước khi lưu
     if (!validateForm()) {
@@ -811,24 +895,63 @@ const saveShippingInfoToProfile = async () => {
       return
     }
     
-    // Cập nhật thông tin vào Profile
-    const updateSuccess = await updateShippingInfoToProfile()
+    // Cập nhật thông tin vào Shipping API
+    const updateSuccess = await updateShippingInfoToAPI()
     
     if (updateSuccess) {
-      showNotification('Thông tin giao hàng đã được lưu vào Profile thành công!', 'success')
+      showNotification('Thông tin giao hàng đã được lưu thành công!', 'success')
     } else {
-      showNotification('Không thể lưu thông tin giao hàng vào Profile. Vui lòng thử lại!', 'error')
+      showNotification('Không thể lưu thông tin giao hàng. Vui lòng thử lại!', 'error')
     }
     
   } catch (error) {
-    console.error('❌ Error saving shipping info to Profile:', error)
+    console.error('❌ Error saving shipping info:', error)
     showNotification('Có lỗi xảy ra khi lưu thông tin giao hàng!', 'error')
   }
 }
 
-// Helper function để lấy token từ cookie
+// Helper function để lấy token từ cookie (fallback)
 const getTokenFromCookie = () => {
-  return document.cookie.split('; ').find(row => row.startsWith('easymart-token='))?.split('=')[1]
+  const token = document.cookie.split('; ').find(row => row.startsWith('easymart-token='))?.split('=')[1]
+  console.log('🍪 Token from cookie:', token ? 'Present' : 'Missing')
+  console.log('🍪 All cookies:', document.cookie)
+  return token
+}
+
+// Helper function để kiểm tra token có expired không
+const isTokenExpired = (token) => {
+  try {
+    if (!token) return true
+    
+    const payload = JSON.parse(atob(token.split('.')[1]))
+    const currentTime = Math.floor(Date.now() / 1000)
+    
+    // Token expired nếu thời gian hiện tại > thời gian hết hạn
+    return currentTime >= payload.exp
+  } catch (error) {
+    console.error('Error checking token expiration:', error)
+    return true
+  }
+}
+
+// Helper function để kiểm tra auth status
+const checkAuthStatus = () => {
+  const token = getToken()
+  
+  if (!token) {
+    console.log('❌ No token found')
+    return false
+  }
+  
+  if (isTokenExpired(token)) {
+    console.log('❌ Token expired')
+    // Clear expired token
+    localStorage.removeItem('easymart-token')
+    return false
+  }
+  
+  console.log('✅ Token valid')
+  return true
 }
 
 // Function để fetch payment methods từ API
@@ -875,7 +998,20 @@ const fetchPaymentMethods = async () => {
      
      // Set default payment method nếu chưa có
      if (activeMethods.length > 0 && !orderForm.value.paymentMethod) {
-       orderForm.value.paymentMethod = activeMethods[0].tenPTTT
+       // Ưu tiên thanh toán tiền mặt làm mặc định
+       const cashMethod = activeMethods.find(method => 
+         method.tenPTTT === 'Tiền Mặt' || 
+         method.tenPTTT.toLowerCase().includes('tiền mặt') ||
+         method.tenPTTT.toLowerCase().includes('cod')
+       )
+       
+       if (cashMethod) {
+         orderForm.value.paymentMethod = cashMethod.tenPTTT
+         console.log('💰 Set default payment method to:', cashMethod.tenPTTT)
+       } else {
+         orderForm.value.paymentMethod = activeMethods[0].tenPTTT
+         console.log('💰 Set default payment method to:', activeMethods[0].tenPTTT)
+       }
      }
     
   } catch (error) {
@@ -930,33 +1066,7 @@ const paymentMethodsError = ref('')
 const couponCode = ref('')
 const appliedCoupon = ref(null)
 const isApplyingCoupon = ref(false)
-const availableCoupons = ref([
-  {
-    code: 'WELCOME10',
-    description: 'Giảm 10% cho đơn hàng đầu tiên',
-    discountType: 'percentage',
-    discountValue: 10,
-    minOrderValue: 100000,
-    maxDiscount: 50000
-  },
-
-  {
-    code: 'SAVE50K',
-    description: 'Giảm 50.000đ cho đơn từ 500.000đ',
-    discountType: 'fixed',
-    discountValue: 50000,
-    minOrderValue: 500000,
-    maxDiscount: 50000
-  },
-  {
-    code: 'VIP20',
-    description: 'Giảm 20% cho khách VIP (tối đa 100k)',
-    discountType: 'percentage',
-    discountValue: 20,
-    minOrderValue: 200000,
-    maxDiscount: 100000
-  }
-])
+const availableCoupons = ref([]) // No longer needed since we're using real API
 
 // Order form
 const orderForm = ref({
@@ -965,7 +1075,7 @@ const orderForm = ref({
   email: '',
   address: '',
   notes: '',
-  paymentMethod: 'cod'
+  paymentMethod: 'Tiền Mặt' // Mặc định là thanh toán tiền mặt
 })
 
 // Get selected items from localStorage or route params
@@ -1077,16 +1187,108 @@ const applyCoupon = async () => {
   isApplyingCoupon.value = true
   
   try {
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000))
+    // Get token for authentication
+    const token = getToken()
+    if (!token) {
+      showNotification('Vui lòng đăng nhập để sử dụng mã khuyến mãi!', 'error')
+      return
+    }
     
-    const coupon = availableCoupons.value.find(c => 
-      c.code.toLowerCase() === couponCode.value.trim().toLowerCase()
+    // Debug: Log API configuration
+    console.log('🔧 API Config:', {
+      BASE_URL: API_CONFIG.BASE_URL,
+      fullEndpoint: `${API_CONFIG.BASE_URL}/api/khuyenmai`,
+      couponCode: couponCode.value.trim()
+    })
+    
+    // Call real promotions API - use the working endpoint structure
+    console.log('🔗 Calling promotions API:', `${API_CONFIG.BASE_URL}/api/khuyenmai`)
+    console.log('🔑 Token present:', !!token)
+    
+    const response = await fetch(`${API_CONFIG.BASE_URL}/api/khuyenmai`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    })
+    
+    console.log('📡 Response status:', response.status)
+    console.log('📡 Response headers:', Object.fromEntries(response.headers.entries()))
+    
+    // Check if response is JSON
+    const contentType = response.headers.get('content-type')
+    if (!contentType || !contentType.includes('application/json')) {
+      // Response is not JSON, likely HTML error page
+      const textResponse = await response.text()
+      console.error('❌ Non-JSON response received:', textResponse.substring(0, 200))
+      throw new Error('Server trả về lỗi. Vui lòng thử lại sau!')
+    }
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      const errorMessage = errorData.message || errorData.error || `Lỗi ${response.status}: Không thể tải danh sách khuyến mãi`
+      throw new Error(errorMessage)
+    }
+    
+    const result = await response.json()
+    console.log('📥 Promotions API response:', result)
+    
+    // Extract promotions data from response
+    let promotionsData = []
+    
+    if (result?.data) {
+      promotionsData = result.data
+    } else if (result?.result) {
+      promotionsData = result.result
+    } else if (Array.isArray(result)) {
+      promotionsData = result
+    } else {
+      throw new Error('Không nhận được danh sách khuyến mãi hợp lệ')
+    }
+    
+    // Filter active promotions and find the matching coupon code
+    const activePromotions = promotionsData.filter(promo => 
+      promo.trangThai === 1 && !promo.isDeleted
     )
     
-    if (!coupon) {
-      showNotification('Mã khuyến mãi không hợp lệ!', 'error')
-      return
+    console.log('✅ Active promotions found:', activePromotions.length)
+    
+    // Find the specific coupon by code
+    const couponData = activePromotions.find(promo => 
+      (promo.couponCode && promo.couponCode.toLowerCase() === couponCode.value.trim().toLowerCase()) ||
+      (promo.maKM && promo.maKM.toLowerCase() === couponCode.value.trim().toLowerCase())
+    )
+    
+    if (!couponData) {
+      throw new Error('Mã khuyến mãi không tồn tại hoặc đã hết hạn')
+    }
+    
+    console.log('🎯 Found matching coupon:', couponData)
+    
+    // Map API response to coupon format (using the same structure as Promotions.vue)
+    const coupon = {
+      code: couponData.couponCode || couponData.maKM,
+      description: couponData.moTa || couponData.tenKM || 'Mã khuyến mãi',
+      discountType: mapDiscountType(couponData.loaiKM),
+      discountValue: couponData.giaTriKM || 0,
+      minOrderValue: 0, // API doesn't have this field, default to 0
+      maxDiscount: (couponData.giaTriKM || 0) * 1000, // Estimate based on promotion value
+      isActive: isPromotionActive(couponData),
+      startDate: new Date(couponData.ngayBatDau),
+      endDate: new Date(couponData.ngayKetThuc),
+      remainingQuantity: (couponData.soLuongToiDa || 0) - (couponData.daSuDung || 0),
+      totalQuantity: couponData.soLuongToiDa || 0,
+      usedQuantity: couponData.daSuDung || 0
+    }
+    
+    // Validate coupon
+    if (!coupon.isActive) {
+      throw new Error('Mã khuyến mãi đã hết hạn hoặc không còn hiệu lực')
+    }
+    
+    if (!coupon.code) {
+      throw new Error('Mã khuyến mãi không hợp lệ')
     }
     
     // Check minimum order value
@@ -1098,11 +1300,44 @@ const applyCoupon = async () => {
       return
     }
     
+    // Apply coupon
     appliedCoupon.value = coupon
     showNotification(`Áp dụng mã ${coupon.code} thành công!`, 'success')
     
   } catch (error) {
-    showNotification('Có lỗi xảy ra khi áp dụng mã khuyến mãi!', 'error')
+    console.error('❌ Error applying coupon:', error)
+    
+    // Check if it's a server/API error
+    if (error.message.includes('Server trả về lỗi') || error.message.includes('fetch')) {
+      showNotification('Máy chủ đang gặp sự cố. Vui lòng thử lại sau!', 'error')
+    } else {
+      showNotification(`Lỗi khi áp dụng mã khuyến mãi: ${error.message}`, 'error')
+    }
+    
+    // Fallback: try to use a test coupon if API fails
+    if (error.message.includes('Server trả về lỗi')) {
+      console.log('🔄 Trying fallback test coupon...')
+      try {
+        // Create a test coupon for development/testing
+        const testCoupon = {
+          code: couponCode.value.trim(),
+          description: 'Mã khuyến mãi test (API không khả dụng)',
+          discountType: 'percentage',
+          discountValue: 10,
+          minOrderValue: 0,
+          maxDiscount: 50000,
+          isActive: true
+        }
+        
+        // Check minimum order value
+        if (subtotal.value >= testCoupon.minOrderValue) {
+          appliedCoupon.value = testCoupon
+          showNotification(`Áp dụng mã test ${testCoupon.code} (API offline)`, 'warning')
+        }
+      } catch (fallbackError) {
+        console.error('❌ Fallback also failed:', fallbackError)
+      }
+    }
   } finally {
     isApplyingCoupon.value = false
   }
@@ -1114,10 +1349,35 @@ const removeCoupon = () => {
   showNotification('Đã xóa mã khuyến mãi!', 'info')
 }
 
-const selectCoupon = (code) => {
-  couponCode.value = code
-  applyCoupon()
+// Helper function to map discount type from API to component format
+const mapDiscountType = (loaiKM) => {
+  const typeMap = {
+    'PhanTram': 'percentage',
+    'TienMat': 'fixed',
+    'Diem': 'points',
+    'MuaXTangY': 'buyXGetY',
+    'GiamGia': 'discount'
+  }
+  return typeMap[loaiKM] || 'discount'
 }
+
+// Helper function to check if promotion is active
+const isPromotionActive = (promo) => {
+  const now = new Date()
+  const startDate = new Date(promo.ngayBatDau)
+  const endDate = new Date(promo.ngayKetThuc)
+  
+  return now >= startDate && now <= endDate && 
+         promo.trangThai === 1 && 
+         !promo.isDeleted &&
+         (promo.daSuDung || 0) < (promo.soLuongToiDa || 0)
+}
+
+// Function to select a coupon (no longer needed with real API)
+// const selectCoupon = (code) => {
+//   couponCode.value = code
+//   applyCoupon()
+// }
 
 const processOrder = async () => {
   if (!validateForm()) {
@@ -1131,7 +1391,7 @@ const processOrder = async () => {
     // Tự động cập nhật thông tin giao hàng vào Profile nếu user đã đăng nhập
     if (isLoggedIn && isLoggedIn.value && user.value?.customerInfo?.maKH) {
       console.log('🔄 Auto-updating shipping info to Profile...')
-      const updateSuccess = await updateShippingInfoToProfile()
+      const updateSuccess = await updateShippingInfoToAPI()
       
       if (updateSuccess) {
         showNotification('Thông tin giao hàng đã được cập nhật vào Profile!', 'success')
@@ -1156,26 +1416,45 @@ const processOrder = async () => {
       // Simulate API call
       await new Promise(resolve => setTimeout(resolve, 1000))
       
-      // Create order object với thông tin hóa đơn
-      order = {
-        orderCode: `HD${invoice.maHD}`,
-        invoiceId: invoice.maHD,
-        customer: { ...orderForm.value },
-        items: selectedItems.value,
-        summary: {
-          subtotal: subtotal.value,
-          couponDiscount: couponDiscount.value,
-          total: total.value,
-          itemsCount: totalItemsCount.value
-        },
-        coupon: appliedCoupon.value ? {
-          code: appliedCoupon.value.code,
-          description: appliedCoupon.value.description,
-          discountType: appliedCoupon.value.discountType,
-          discountValue: couponDiscount.value
-        } : null,
-        createdAt: invoice.ngayLap || new Date().toISOString()
-      }
+              // Create order object với thông tin hóa đơn
+        order = {
+          orderCode: `HD${invoice.maHD}`,
+          invoiceId: invoice.maHD,
+          customer: { ...orderForm.value },
+          items: selectedItems.value,
+          summary: {
+            subtotal: subtotal.value,
+            couponDiscount: couponDiscount.value,
+            total: total.value,
+            itemsCount: totalItemsCount.value
+          },
+          // Sử dụng thông tin coupon từ appliedCoupon (đã được load từ invoice data nếu có)
+          coupon: appliedCoupon.value ? {
+            code: appliedCoupon.value.code,
+            description: appliedCoupon.value.description,
+            discountType: appliedCoupon.value.discountType,
+            discountValue: couponDiscount.value,
+            tienGiamGia: couponDiscount.value,
+            tongTienSauGiamGia: total.value
+          } : null,
+          // Thêm thông tin khuyến mãi để cập nhật database
+          maKM: appliedCoupon.value?.code || null,
+          tienGiamGia: couponDiscount.value,
+          tongTienSauGiamGia: total.value,
+          createdAt: invoice.ngayLap || new Date().toISOString()
+        }
+      
+              console.log('📋 Created order with invoice:', {
+          orderCode: order.orderCode,
+          invoiceId: order.invoiceId,
+          coupon: order.coupon,
+          couponDiscount: order.summary.couponDiscount,
+          total: order.summary.total,
+          appliedCoupon: appliedCoupon.value,
+          maKM: order.maKM,
+          tienGiamGia: order.tienGiamGia,
+          tongTienSauGiamGia: order.tongTienSauGiamGia
+        })
     } else {
       // Không có hóa đơn, tạo mới (fallback)
       console.log('⚠️ Không có hóa đơn, tạo đơn hàng mới')
@@ -1186,6 +1465,7 @@ const processOrder = async () => {
       // Create order object
       order = {
         orderCode: orderCode.value,
+        invoiceId: null, // Không có invoiceId cho order mới
         customer: { ...orderForm.value },
         items: selectedItems.value,
         summary: {
@@ -1198,16 +1478,360 @@ const processOrder = async () => {
           code: appliedCoupon.value.code,
           description: appliedCoupon.value.description,
           discountType: appliedCoupon.value.discountType,
-          discountValue: couponDiscount.value
+          discountValue: couponDiscount.value,
+          tienGiamGia: couponDiscount.value,
+          tongTienSauGiamGia: total.value
         } : null,
+        // Thêm thông tin khuyến mãi để cập nhật database
+        maKM: appliedCoupon.value?.code || null,
+        tienGiamGia: couponDiscount.value,
+        tongTienSauGiamGia: total.value,
         createdAt: new Date().toISOString()
       }
+      
+              console.log('📋 Created new order:', {
+          orderCode: order.orderCode,
+          invoiceId: order.invoiceId,
+          coupon: order.coupon,
+          couponDiscount: order.summary.couponDiscount,
+          total: order.summary.total,
+          appliedCoupon: appliedCoupon.value,
+          maKM: order.maKM,
+          tienGiamGia: order.tienGiamGia,
+          tongTienSauGiamGia: order.tongTienSauGiamGia
+        })
     }
     
     // Save order to localStorage (in real app, send to API)
     // const orders = JSON.parse(localStorage.getItem('easymart-orders') || '[]')
     // orders.push(order)
     // localStorage.setItem('easymart-orders', JSON.stringify(orders))
+    
+    // Nếu có mã khuyến mãi và có invoiceId, cập nhật lại hóa đơn với thông tin khuyến mãi
+    if (appliedCoupon.value && order.invoiceId) {
+      try {
+        console.log('🎫 Updating invoice with coupon information...')
+        console.log('🔍 Applied coupon:', appliedCoupon.value)
+        console.log('🔍 Invoice ID:', order.invoiceId)
+        console.log('🔍 Coupon discount:', couponDiscount.value)
+        console.log('🔍 Total after discount:', total.value)
+        
+        const token = getTokenFromCookie()
+        if (token) {
+          console.log('🔑 Token found for invoice update:', token ? 'Present' : 'Missing')
+          
+          // Bước 1: Lấy thông tin chi tiết mã khuyến mãi từ API
+          console.log('🎫 Getting coupon details from API...')
+          let couponDetails = null
+          
+          try {
+            const couponResponse = await fetch(`${API_CONFIG.BASE_URL}/api/khuyenmai/coupon/${appliedCoupon.value.code}`, {
+              method: 'GET',
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+              }
+            })
+            
+            console.log('📡 Coupon API response status:', couponResponse.status)
+            
+            if (couponResponse.ok) {
+              // Kiểm tra content-type để đảm bảo response là JSON
+              const contentType = couponResponse.headers.get('content-type')
+              console.log('📡 Response content-type:', contentType)
+              
+              if (contentType && contentType.includes('application/json')) {
+                const couponResult = await couponResponse.json()
+                console.log('📥 Coupon API response:', couponResult)
+                
+                // Lấy thông tin mã khuyến mãi từ response
+                if (couponResult?.khuyenMai) {
+                  // Format mới: response có khuyenMai object
+                  couponDetails = couponResult.khuyenMai
+                  console.log('✅ Found khuyenMai object:', couponDetails)
+                } else if (couponResult?.data) {
+                  couponDetails = couponResult.data
+                } else if (couponResult?.result) {
+                  couponDetails = couponResult.result
+                } else if (couponResult?.maKM) {
+                  couponDetails = couponResult
+                }
+                
+                console.log('✅ Coupon details retrieved:', couponDetails)
+              } else {
+                console.log('⚠️ Response is not JSON, content-type:', contentType)
+                const textResponse = await couponResponse.text()
+                console.log('📄 Text response (first 200 chars):', textResponse.substring(0, 200))
+              }
+            } else {
+              console.log('⚠️ Coupon API failed:', couponResponse.status)
+              const couponError = await couponResponse.text()
+              console.log('❌ Coupon API error:', couponError)
+            }
+          } catch (couponError) {
+            console.error('❌ Error getting coupon details:', couponError)
+          }
+          
+          // Nếu không lấy được coupon details, thử API khác
+          if (!couponDetails) {
+            console.log('🔄 Trying alternative coupon API...')
+            try {
+              const altCouponResponse = await fetch(`${API_CONFIG.BASE_URL}/api/khuyenmai`, {
+                method: 'GET',
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Content-Type': 'application/json'
+                }
+              })
+              
+              if (altCouponResponse.ok) {
+                const altCouponResult = await altCouponResponse.json()
+                console.log('📥 Alternative coupon API response:', altCouponResult)
+                
+                // Tìm mã khuyến mãi trong danh sách
+                let promotions = []
+                if (altCouponResult?.data) {
+                  promotions = altCouponResult.data
+                } else if (altCouponResult?.result) {
+                  promotions = altCouponResult.result
+                } else if (Array.isArray(altCouponResult)) {
+                  promotions = altCouponResult
+                }
+                
+                // Tìm mã khuyến mãi theo code
+                const foundPromotion = promotions.find(promo => 
+                  (promo.couponCode && promo.couponCode.toLowerCase() === appliedCoupon.value.code.toLowerCase()) ||
+                  (promo.maKM && promo.maKM.toLowerCase() === appliedCoupon.value.code.toLowerCase()) ||
+                  (promo.tenKM && promo.tenKM.toLowerCase().includes(appliedCoupon.value.code.toLowerCase())) ||
+                  (promo.khuyenMai?.couponCode && promo.khuyenMai.couponCode.toLowerCase() === appliedCoupon.value.code.toLowerCase())
+                )
+                
+                if (foundPromotion) {
+                  couponDetails = foundPromotion
+                  console.log('✅ Found promotion in alternative API:', foundPromotion)
+                } else {
+                  console.log('⚠️ Promotion not found in alternative API')
+                }
+              }
+            } catch (altError) {
+              console.log('⚠️ Alternative coupon API also failed:', altError)
+            }
+          }
+          
+          // Bước 2: Chuẩn bị dữ liệu cập nhật hóa đơn với maKM thực tế
+          // Lấy maKH từ nhiều nguồn khác nhau
+          let maKH = cart?.maKH || 
+                      user.value?.customerInfo?.maKH || 
+                      user.value?.maKH ||
+                      user.value?.khachHang?.maKH
+          
+          // Nếu vẫn không có maKH, thử lấy từ API
+          if (!maKH) {
+            console.log('🔍 No maKH found, trying to get from API...')
+            try {
+              const realMaKH = await getMaKHFromAPI()
+              if (realMaKH) {
+                maKH = realMaKH
+                console.log('✅ Got maKH from API:', maKH)
+              }
+            } catch (apiError) {
+              console.log('⚠️ Failed to get maKH from API:', apiError)
+            }
+          }
+          
+          // Fallback maKH nếu vẫn không có
+          if (!maKH) {
+            maKH = "KH001" // Fallback value
+            console.log('⚠️ Using fallback maKH:', maKH)
+          }
+          
+          // Lấy maKM thực tế từ coupon details
+          const realMaKM = couponDetails?.maKM
+          console.log('🎯 Real maKM from API:', realMaKM)
+          console.log('🎯 Coupon code used:', appliedCoupon.value.code)
+          
+          const invoiceUpdateData = {
+            maHD: order.invoiceId,
+            maKH: maKH,
+            maNVLap: user.value?.maNhanVien || "NV001",
+            khuyenMai: {
+              maKM: realMaKM || appliedCoupon.value.code // Ưu tiên maKM thực tế từ API
+            },
+            tongTienHang: subtotal.value,
+            tienGiamGia: couponDiscount.value,
+            tongTienSauGiamGia: total.value,
+            ghiChu: `Áp dụng mã khuyến mãi: ${appliedCoupon.value.code} - Giảm: ${formatPrice(couponDiscount.value)}`
+          }
+          
+          console.log('📤 Invoice update data with real maKM:', invoiceUpdateData)
+          console.log('🔍 Coupon details used:', {
+            couponCode: appliedCoupon.value.code,
+            realMaKM: realMaKM,
+            fallbackMaKM: appliedCoupon.value.code,
+            couponDetailsFound: !!couponDetails
+          })
+          
+          console.log('📤 Invoice update data:', invoiceUpdateData)
+          console.log('🔍 Data sources:', {
+            cartMaKH: cart?.maKH,
+            userCustomerInfoMaKH: user.value?.customerInfo?.maKH,
+            userMaKH: user.value?.maKH,
+            finalMaKH: invoiceUpdateData.maKH,
+            maNVLap: invoiceUpdateData.maNVLap
+          })
+          console.log('🔗 API endpoint:', `${API_CONFIG.BASE_URL}/api/hoadon/${order.invoiceId}`)
+          
+          // Gọi API để cập nhật hóa đơn với thông tin khuyến mãi
+          console.log('🔗 Full API URL:', `${API_CONFIG.BASE_URL}/api/hoadon/${order.invoiceId}`)
+          console.log('🔑 Full Authorization header:', `Bearer ${token}`)
+          console.log('📤 Full request body:', JSON.stringify(invoiceUpdateData, null, 2))
+          
+          // Thử kiểm tra xem API endpoint có tồn tại không
+          console.log('🔍 Testing if API endpoint exists...')
+          try {
+            const testResponse = await fetch(`${API_CONFIG.BASE_URL}/api/hoadon/${order.invoiceId}`, {
+              method: 'GET',
+              headers: {
+                'Authorization': `Bearer ${token}`
+              }
+            })
+            console.log('🔍 GET test response status:', testResponse.status)
+            if (testResponse.ok) {
+              const testData = await testResponse.json().catch(() => ({}))
+              console.log('🔍 GET test response data:', testData)
+            }
+          } catch (testError) {
+            console.log('🔍 GET test failed:', testError)
+          }
+          
+          const invoiceUpdateResponse = await fetch(`${API_CONFIG.BASE_URL}/api/hoadon/${order.invoiceId}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(invoiceUpdateData)
+          })
+          
+          console.log('📡 Invoice update response status:', invoiceUpdateResponse.status)
+          console.log('📡 Invoice update response headers:', Object.fromEntries(invoiceUpdateResponse.headers.entries()))
+          
+          if (invoiceUpdateResponse.ok) {
+            const updateResult = await invoiceUpdateResponse.json().catch(() => ({}))
+            console.log('✅ Invoice updated with coupon information successfully')
+            console.log('📥 Update response:', updateResult)
+            showNotification('Thông tin khuyến mãi đã được cập nhật vào hóa đơn!', 'success')
+          } else {
+            console.log('⚠️ Failed to update invoice with coupon info, but order was created successfully')
+            const errorData = await invoiceUpdateResponse.text()
+            console.log('❌ Status:', invoiceUpdateResponse.status)
+            console.log('❌ Status text:', invoiceUpdateResponse.statusText)
+            console.log('❌ Error response:', errorData)
+            
+            // Thử fallback: cập nhật trạng thái trước, sau đó cập nhật thông tin khuyến mãi
+            console.log('🔄 Trying fallback: update invoice status first...')
+            try {
+              // Bước 1: Cập nhật trạng thái hóa đơn
+              const statusUpdateResponse = await fetch(`${API_CONFIG.BASE_URL}/api/hoadon/${order.invoiceId}/trangthai/1`, {
+                method: 'PUT',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token}`
+                }
+                // Không cần body cho cập nhật trạng thái
+              })
+              
+              if (statusUpdateResponse.ok) {
+                console.log('✅ Status update successful')
+                
+                                // Bước 2: Thử cập nhật thông tin khuyến mãi qua API khác
+                console.log('🔄 Now trying to update coupon info...')
+                try {
+                  // Thử cập nhật chỉ một số trường thay vì toàn bộ hóa đơn
+                  const couponUpdateResponse = await fetch(`${API_CONFIG.BASE_URL}/api/hoadon/${order.invoiceId}`, {
+                    method: 'PUT', // Sử dụng PUT với body đơn giản hơn
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                      // Chỉ gửi các trường cần thiết
+                      maKM: realMaKM || appliedCoupon.value.code,
+                      tienGiamGia: couponDiscount.value,
+                      tongTienSauGiamGia: total.value
+                      // Bỏ các trường khác để tránh conflict
+                    })
+                  })
+                  
+                  if (couponUpdateResponse.ok) {
+                    console.log('✅ Coupon info update successful')
+                    showNotification('Thông tin khuyến mãi đã được cập nhật thành công!', 'success')
+                  } else {
+                    console.log('⚠️ Coupon info update failed:', couponUpdateResponse.status)
+                    const couponError = await couponUpdateResponse.text()
+                    console.log('❌ Coupon update error:', couponError)
+                    
+                    // Bước 3: Thử cập nhật qua API cuối cùng
+                    console.log('🔄 Trying final fallback: direct invoice update...')
+                    try {
+                      const finalResponse = await fetch(`${API_CONFIG.BASE_URL}/api/hoadon/${order.invoiceId}`, {
+                        method: 'PATCH', // Thử PATCH thay vì PUT
+                        headers: {
+                          'Content-Type': 'application/json',
+                          'Authorization': `Bearer ${token}`
+                        },
+                                                 body: JSON.stringify({
+                           maKM: realMaKM || appliedCoupon.value.code,
+                           tienGiamGia: couponDiscount.value,
+                           tongTienSauGiamGia: total.value,
+                           ghiChu: `Áp dụng mã khuyến mãi: ${appliedCoupon.value.code} - Giảm: ${formatPrice(couponDiscount.value)}`
+                         })
+                      })
+                      
+                      if (finalResponse.ok) {
+                        console.log('✅ Final fallback successful with PATCH')
+                        showNotification('Thông tin khuyến mãi đã được cập nhật qua PATCH!', 'success')
+                      } else {
+                        console.log('❌ Final fallback also failed:', finalResponse.status)
+                        const finalError = await finalResponse.text()
+                        console.log('❌ Final error:', finalError)
+                      }
+                    } catch (finalError) {
+                      console.error('❌ Final fallback error:', finalError)
+                    }
+                  }
+                } catch (couponError) {
+                  console.error('❌ Coupon update error:', couponError)
+                }
+              } else {
+                console.log('❌ Status update failed:', statusUpdateResponse.status)
+                const statusError = await statusUpdateResponse.text()
+                console.log('❌ Status error:', statusError)
+              }
+              
+              
+            } catch (fallbackError) {
+              console.error('❌ Fallback error:', fallbackError)
+            }
+          }
+        } else {
+          console.log('⚠️ Cannot update invoice: Token missing')
+          console.log('🔑 Token from cookie:', getTokenFromCookie())
+        }
+      } catch (error) {
+        console.error('❌ Error updating invoice with coupon info:', error)
+        console.error('❌ Error details:', {
+          message: error.message,
+          stack: error.stack,
+          name: error.name
+        })
+        // Không block flow nếu cập nhật hóa đơn fail
+      }
+    } else {
+      console.log('ℹ️ No coupon or invoiceId, skipping invoice update')
+      console.log('🔍 Applied coupon:', appliedCoupon.value)
+      console.log('🔍 Order invoiceId:', order.invoiceId)
+    }
     
     // 🧹 Clear cart after successful order creation
     console.log('🧹 Clearing cart after successful checkout...')
@@ -1238,38 +1862,307 @@ const processOrder = async () => {
 const handlePaymentRedirect = async (order) => {
   const paymentMethod = orderForm.value.paymentMethod
   
-  // Save order info to localStorage for payment success page
-  localStorage.setItem('easymart-last-order', JSON.stringify(order))
+      // Save order info to localStorage for payment success page
+    console.log('💾 Saving order to localStorage:', {
+      orderCode: order.orderCode,
+      coupon: order.coupon,
+      couponDiscount: order.summary?.couponDiscount,
+      total: order.summary?.total,
+      appliedCoupon: appliedCoupon.value
+    })
+    
+    localStorage.setItem('easymart-last-order', JSON.stringify(order))
   
   switch (paymentMethod) {
     case 'Tiền Mặt':
       showNotification(`Đặt hàng thành công! Mã đơn hàng: ${orderCode.value}. Bạn sẽ thanh toán khi nhận hàng.`, 'success')
-      break
+      
+      // Cập nhật trạng thái đơn hàng thành "Chờ thanh toán" (trạng thái 1)
+      try {
+        console.log('🔄 Updating order status to "Pending Payment" for COD payment...')
+        
+        // Lấy token từ cookie để cập nhật trạng thái
+        const token = getTokenFromCookie()
+        if (token && order.invoiceId) {
+          console.log('🔑 Token found for status update:', token ? 'Present' : 'Missing')
+          console.log('🆔 Invoice ID for status update:', order.invoiceId)
+          
+          // Gọi API để cập nhật trạng thái đơn hàng
+          // Sử dụng API endpoint đúng: PUT /api/hoadon/{maHD}/trangthai/{trangThai}
+          const updateResponse = await fetch(`${API_CONFIG.BASE_URL}/api/hoadon/${order.invoiceId}/trangthai/1`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            }
+            // Không cần body vì trạng thái được truyền qua URL
+          })
+          
+          if (updateResponse.ok) {
+            console.log('✅ Order status updated to "Pending Payment" successfully')
+            showNotification('Trạng thái đơn hàng đã được cập nhật!', 'success')
+          } else {
+            console.log('⚠️ Failed to update order status, but order was created successfully')
+            const errorData = await updateResponse.text()
+            console.log('❌ Status update error response:', errorData)
+            
+            // Thử fallback: cập nhật trực tiếp hóa đơn
+            console.log('🔄 Trying fallback: direct invoice update...')
+            try {
+              const fallbackResponse = await fetch(`${API_CONFIG.BASE_URL}/api/hoadon/${order.invoiceId}`, {
+                method: 'PUT',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                  trangThai: 1, // Trạng thái "Chờ thanh toán"
+                  ghiChu: 'Đơn hàng COD - Chờ thanh toán khi nhận hàng'
+                })
+              })
+              
+              if (fallbackResponse.ok) {
+                console.log('✅ Fallback status update successful')
+                showNotification('Trạng thái đơn hàng đã được cập nhật qua fallback!', 'success')
+              } else {
+                console.log('⚠️ Fallback also failed:', fallbackResponse.status)
+              }
+            } catch (fallbackError) {
+              console.error('❌ Fallback error:', fallbackError)
+            }
+          }
+        } else {
+          console.log('⚠️ Cannot update status: Token or Invoice ID missing')
+          console.log('🔑 Token:', token ? 'Present' : 'Missing')
+          console.log('🆔 Invoice ID:', order.invoiceId)
+        }
+      } catch (error) {
+        console.error('❌ Error updating order status:', error)
+        // Không block flow nếu cập nhật trạng thái fail
+      }
+      
+      // Chuyển đến trang thanh toán thành công sau 2 giây
+      setTimeout(() => {
+        router.push({
+          name: 'PaymentSuccess',
+          query: {
+            orderCode: orderCode.value,
+            total: total.value,
+            paymentMethod: paymentMethod,
+            orderStatus: 'pending_payment' // Thêm thông tin trạng thái
+          }
+        })
+      }, 2000)
+      return
       
     case 'Chuyển Khoản':
       showNotification(`Đặt hàng thành công! Mã đơn hàng: ${orderCode.value}. Vui lòng chuyển khoản theo thông tin đã cung cấp.`, 'success')
-      break
+      
+      // Cập nhật trạng thái đơn hàng thành "Chờ thanh toán" (trạng thái 1)
+      try {
+        console.log('🔄 Updating order status to "Pending Payment" for bank transfer...')
+        
+        const token = getTokenFromCookie()
+        if (token && order.invoiceId) {
+          console.log('🔑 Token found for status update:', token ? 'Present' : 'Missing')
+          console.log('🆔 Invoice ID for status update:', order.invoiceId)
+          
+          // Sử dụng API endpoint đúng: PUT /api/hoadon/{maHD}/trangthai/{trangThai}
+          const updateResponse = await fetch(`${API_CONFIG.BASE_URL}/api/hoadon/${order.invoiceId}/trangthai/1`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            }
+            // Không cần body vì trạng thái được truyền qua URL
+          })
+          
+          if (updateResponse.ok) {
+            console.log('✅ Order status updated to "Pending Payment" successfully')
+            showNotification('Trạng thái đơn hàng đã được cập nhật!', 'success')
+          } else {
+            console.log('⚠️ Failed to update order status, but order was created successfully')
+            const errorData = await updateResponse.text()
+            console.log('❌ Status update error response:', errorData)
+          }
+        } else {
+          console.log('⚠️ Cannot update status: Token or Invoice ID missing')
+          console.log('🔑 Token:', token ? 'Present' : 'Missing')
+          console.log('🆔 Invoice ID:', order.invoiceId)
+        }
+      } catch (error) {
+        console.error('❌ Error updating order status:', error)
+      }
+      
+      // Chuyển đến trang thanh toán thành công sau 2 giây
+      setTimeout(() => {
+        router.push({
+          name: 'PaymentSuccess',
+          query: {
+            orderCode: orderCode.value,
+            total: total.value,
+            paymentMethod: paymentMethod,
+            orderStatus: 'pending_payment'
+          }
+        })
+      }, 2000)
+      return
       
     case 'MoMo':
       showNotification(`Đang chuyển đến MoMo để thanh toán...`, 'info')
+      
+      // Cập nhật trạng thái đơn hàng thành "Chờ thanh toán" (trạng thái 1)
+      try {
+        console.log('🔄 Updating order status to "Pending Payment" for MoMo...')
+        
+        const token = getTokenFromCookie()
+        if (token && order.invoiceId) {
+          console.log('🔑 Token found for status update:', token ? 'Present' : 'Missing')
+          console.log('🆔 Invoice ID for status update:', order.invoiceId)
+          
+          // Sử dụng API endpoint đúng: PUT /api/hoadon/{maHD}/trangthai/{trangThai}
+          const updateResponse = await fetch(`${API_CONFIG.BASE_URL}/api/hoadon/${order.invoiceId}/trangthai/1`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            }
+            // Không cần body vì trạng thái được truyền qua URL
+          })
+          
+          if (updateResponse.ok) {
+            console.log('✅ Order status updated to "Pending Payment" successfully')
+          } else {
+            console.log('⚠️ Failed to update order status, but order was created successfully')
+            const errorData = await updateResponse.text()
+            console.log('❌ Status update error response:', errorData)
+          }
+        } else {
+          console.log('⚠️ Cannot update status: Token or Invoice ID missing')
+          console.log('🔑 Token:', token ? 'Present' : 'Missing')
+          console.log('🆔 Invoice ID:', order.invoiceId)
+        }
+      } catch (error) {
+        console.error('❌ Error updating order status:', error)
+      }
+      
+      // Chuyển đến trang thanh toán thành công sau 2 giây
       setTimeout(() => {
-        showNotification(`Thanh toán MoMo thành công! Mã đơn hàng: ${orderCode.value}`, 'success')
-      }, 1500)
-      break
+        router.push({
+          name: 'PaymentSuccess',
+          query: {
+            orderCode: orderCode.value,
+            total: total.value,
+            paymentMethod: paymentMethod,
+            orderStatus: 'pending_payment'
+          }
+        })
+      }, 2000)
+      return
       
     case 'ZaloPay':
       showNotification(`Đang chuyển đến ZaloPay để thanh toán...`, 'info')
+      
+      // Cập nhật trạng thái đơn hàng thành "Chờ thanh toán" (trạng thái 1)
+      try {
+        console.log('🔄 Updating order status to "Pending Payment" for ZaloPay...')
+        
+        const token = getTokenFromCookie()
+        if (token && order.invoiceId) {
+          console.log('🔑 Token found for status update:', token ? 'Present' : 'Missing')
+          console.log('🆔 Invoice ID for status update:', order.invoiceId)
+          
+          // Sử dụng API endpoint đúng: PUT /api/hoadon/{maHD}/trangthai/{trangThai}
+          const updateResponse = await fetch(`${API_CONFIG.BASE_URL}/api/hoadon/${order.invoiceId}/trangthai/1`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            }
+            // Không cần body vì trạng thái được truyền qua URL
+          })
+          
+          if (updateResponse.ok) {
+            console.log('✅ Order status updated to "Pending Payment" successfully')
+          } else {
+            console.log('⚠️ Failed to update order status, but order was created successfully')
+            const errorData = await updateResponse.text()
+            console.log('❌ Status update error response:', errorData)
+          }
+        } else {
+          console.log('⚠️ Cannot update status: Token or Invoice ID missing')
+          console.log('🔑 Token:', token ? 'Present' : 'Missing')
+          console.log('🆔 Invoice ID:', order.invoiceId)
+        }
+      } catch (error) {
+        console.error('❌ Error updating order status:', error)
+      }
+      
+      // Chuyển đến trang thanh toán thành công sau 2 giây
       setTimeout(() => {
-        showNotification(`Thanh toán ZaloPay thành công! Mã đơn hàng: ${orderCode.value}`, 'success')
-      }, 1500)
-      break
+        router.push({
+          name: 'PaymentSuccess',
+          query: {
+            orderCode: orderCode.value,
+            total: total.value,
+            paymentMethod: paymentMethod,
+            orderStatus: 'pending_payment'
+          }
+        })
+      }, 2000)
+      return
       
     case 'Thẻ Tín Dụng':
       showNotification(`Đang chuyển đến cổng thanh toán...`, 'info')
+      
+      // Cập nhật trạng thái đơn hàng thành "Chờ thanh toán" (trạng thái 1)
+      try {
+        console.log('🔄 Updating order status to "Pending Payment" for Credit Card...')
+        
+        const token = getTokenFromCookie()
+        if (token && order.invoiceId) {
+          console.log('🔑 Token found for status update:', token ? 'Present' : 'Missing')
+          console.log('🆔 Invoice ID for status update:', order.invoiceId)
+          
+          // Sử dụng API endpoint đúng: PUT /api/hoadon/{maHD}/trangthai/{trangThai}
+          const updateResponse = await fetch(`${API_CONFIG.BASE_URL}/api/hoadon/${order.invoiceId}/trangthai/1`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            }
+            // Không cần body vì trạng thái được truyền qua URL
+          })
+          
+          if (updateResponse.ok) {
+            console.log('✅ Order status updated to "Pending Payment" successfully')
+          } else {
+            console.log('⚠️ Failed to update order status, but order was created successfully')
+            const errorData = await updateResponse.text()
+            console.log('❌ Status update error response:', errorData)
+          }
+        } else {
+          console.log('⚠️ Cannot update status: Token or Invoice ID missing')
+          console.log('🔑 Token:', token ? 'Present' : 'Missing')
+          console.log('🆔 Invoice ID:', order.invoiceId)
+        }
+      } catch (error) {
+        console.error('❌ Error updating order status:', error)
+      }
+      
+      // Chuyển đến trang thanh toán thành công sau 2 giây
       setTimeout(() => {
-        showNotification(`Thanh toán thẻ tín dụng thành công! Mã đơn hàng: ${orderCode.value}`, 'success')
-      }, 1500)
-      break
+        router.push({
+          name: 'PaymentSuccess',
+          query: {
+            orderCode: orderCode.value,
+            total: total.value,
+            paymentMethod: paymentMethod,
+            orderStatus: 'pending_payment'
+          }
+        })
+      }, 2000)
+      return
       
     case 'VNPay':
       try {
@@ -1466,20 +2359,213 @@ const handlePaymentRedirect = async (order) => {
       
     default:
       showNotification(`Đặt hàng thành công! Mã đơn hàng: ${orderCode.value}`, 'success')
+      
+      // Cập nhật trạng thái đơn hàng thành "Chờ thanh toán" (trạng thái 1) cho các phương thức khác
+      try {
+        console.log('🔄 Updating order status to "Pending Payment" for default payment method...')
+        
+        const token = getTokenFromCookie()
+        if (token && order.invoiceId) {
+          console.log('🔑 Token found for status update:', token ? 'Present' : 'Missing')
+          console.log('🆔 Invoice ID for status update:', order.invoiceId)
+          
+          // Sử dụng API endpoint đúng: PUT /api/hoadon/{maHD}/trangthai/{trangThai}
+          const updateResponse = await fetch(`${API_CONFIG.BASE_URL}/api/hoadon/${order.invoiceId}/trangthai/1`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            }
+            // Không cần body vì trạng thái được truyền qua URL
+          })
+          
+          if (updateResponse.ok) {
+            console.log('✅ Order status updated to "Pending Payment" successfully')
+          } else {
+            console.log('⚠️ Failed to update order status, but order was created successfully')
+            const errorData = await updateResponse.text()
+            console.log('❌ Status update error response:', errorData)
+          }
+        } else {
+          console.log('⚠️ Cannot update status: Token or Invoice ID missing')
+          console.log('🔑 Token:', token ? 'Present' : 'Missing')
+          console.log('🆔 Invoice ID:', order.invoiceId)
+        }
+      } catch (error) {
+        console.error('❌ Error updating order status:', error)
+      }
+      
+      // Chuyển đến trang thanh toán thành công sau 2 giây
+      setTimeout(() => {
+        router.push({
+          name: 'PaymentSuccess',
+          query: {
+            orderCode: orderCode.value,
+            total: total.value,
+            paymentMethod: paymentMethod,
+            orderStatus: 'pending_payment'
+          }
+        })
+      }, 2000)
+      return
   }
-  
-  // Redirect to payment success page after delay (chỉ cho các phương thức không phải VNPay)
-  if (paymentMethod !== 'VNPay') {
-    setTimeout(() => {
-      router.push({
-        name: 'PaymentSuccess',
-        query: {
-          orderCode: orderCode.value,
-          total: total.value,
-          paymentMethod: paymentMethod
+}
+
+// Function để lấy thông tin giao hàng từ Shipping API riêng biệt
+const fetchShippingInfoFromAPI = async () => {
+  try {
+    console.log('📡 Fetching shipping info from Shipping API...')
+    isSyncingWithProfile.value = true
+    
+    // Tìm maKH từ các nguồn khác nhau - ưu tiên cart vì nó đang hoạt động
+    let maKH = cart?.maKH || 
+                user.value?.customerInfo?.maKH || 
+                user.value?.maKH ||
+                user.value?.khachHang?.maKH
+    
+    console.log('🔑 Found maKH from sources:', {
+      cart: cart?.maKH,
+      userCustomerInfo: user.value?.customerInfo?.maKH,
+      userMaKH: user.value?.maKH,
+      userKhachHang: user.value?.khachHang?.maKH,
+      final: maKH
+    })
+    
+    // Nếu cart đã có maKH thì sử dụng luôn (cart đang hoạt động tốt)
+    if (cart?.maKH) {
+      maKH = cart.maKH
+      console.log('✅ Using maKH from cart (most reliable):', maKH)
+    } else if (!maKH) {
+      // Chỉ thử API nếu không có maKH từ bất kỳ nguồn nào
+      console.log('🔍 No maKH found from any source, trying API...')
+      const realMaKH = await getMaKHFromAPI()
+      if (realMaKH) {
+        maKH = realMaKH
+        console.log('✅ Got maKH from API:', maKH)
+        
+        // Cập nhật user state với thông tin customer
+        if (user.value) {
+          if (!user.value.customerInfo) user.value.customerInfo = {}
+          user.value.customerInfo.maKH = realMaKH
+          user.value.maKH = realMaKH
+          user.value.khachHang = { maKH: realMaKH }
+        }
+      } else {
+        console.log('❌ No maKH found from API, cannot fetch shipping info')
+        showNotification('Không thể xác định thông tin khách hàng. Vui lòng đăng nhập lại!', 'warning')
+        return
+      }
+    }
+    
+    // Lấy token từ getToken function thay vì cookie
+    const token = getToken()
+    if (!token) {
+      console.log('⚠️ No token found, cannot fetch shipping info')
+      return
+    }
+    
+    // Thử gọi API mới trước, nếu fail thì fallback về API cũ
+    let infoEndpoint = `${API_CONFIG.BASE_URL}/api/khachhang/${maKH}/shipping-info`
+    console.log('🔗 Trying Shipping API endpoint first:', infoEndpoint)
+    
+    let infoResponse = await fetch(infoEndpoint, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    })
+    
+    let apiSource = 'Shipping API'
+    
+    // Nếu Shipping API fail, thử Profile API cũ
+    if (!infoResponse.ok) {
+      console.log('⚠️ Shipping API failed:', infoResponse.status, 'falling back to Profile API...')
+      
+      infoEndpoint = `${API_CONFIG.BASE_URL}/api/khachhang/${maKH}/info`
+      console.log('🔄 Fallback to Profile API endpoint:', infoEndpoint)
+      
+      infoResponse = await fetch(infoEndpoint, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
         }
       })
-    }, 3000)
+      
+      apiSource = 'Profile API (fallback)'
+      
+      if (!infoResponse.ok) {
+        console.log('⚠️ Profile API also failed:', infoResponse.status)
+        return
+      }
+    }
+    
+    const infoResult = await infoResponse.json()
+    console.log(`📥 ${apiSource} response:`, infoResult)
+    
+    // Xử lý response format khác nhau
+    let customerData = null
+    
+    if (infoResult?.data) {
+      customerData = infoResult.data
+    } else if (infoResult?.result) {
+      customerData = infoResult.result
+    } else if (infoResult?.hoTen || infoResult?.sdt || infoResult?.diaChi) {
+      customerData = infoResult
+    } else if (Array.isArray(infoResult)) {
+      customerData = infoResult[0]
+    }
+    
+    if (customerData) {
+      console.log(`✅ Data received from ${apiSource}:`, customerData)
+      console.log('🔍 Available fields:', Object.keys(customerData))
+      console.log('📝 Current form values before update:', {
+        fullName: orderForm.value.fullName,
+        phone: orderForm.value.phone,
+        email: orderForm.value.email,
+        address: orderForm.value.address
+      })
+      
+      // Cập nhật user state với dữ liệu
+      if (user.value?.customerInfo) {
+        user.value.customerInfo = { ...user.value.customerInfo, ...customerData }
+      }
+      
+      // Cập nhật form với thông tin giao hàng
+      if (customerData.hoTen) {
+        orderForm.value.fullName = customerData.hoTen
+      }
+      
+      // Handle both sdt and soDienThoai field names
+      if (customerData.sdt || customerData.soDienThoai) {
+        orderForm.value.phone = customerData.sdt || customerData.soDienThoai
+      }
+      
+      if (customerData.diaChi) {
+        orderForm.value.address = customerData.diaChi
+      }
+      
+      // Handle email from multiple sources
+      if (customerData.email) {
+        orderForm.value.email = customerData.email
+      } else if (customerData.nguoiDung?.email) {
+        orderForm.value.email = customerData.nguoiDung.email
+      }
+      
+      console.log('📝 Form values after update:', {
+        fullName: orderForm.value.fullName,
+        phone: orderForm.value.phone,
+        email: orderForm.value.email,
+        address: orderForm.value.address
+      })
+      console.log(`✅ Info updated from ${apiSource}`)
+    }
+    
+  } catch (error) {
+    console.error('❌ Error fetching shipping info:', error)
+  } finally {
+    isSyncingWithProfile.value = false
   }
 }
 
@@ -1487,11 +2573,47 @@ const handlePaymentRedirect = async (order) => {
 onMounted(async () => {
   console.log('🚀 Checkout page mounted')
   
+  // Kiểm tra auth status trước
+  console.log('🔐 Checking authentication status...')
+  if (!checkAuthStatus()) {
+    console.log('❌ Authentication failed, redirecting to login...')
+    showNotification('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại!', 'warning')
+    setTimeout(() => {
+      router.push('/login')
+    }, 2000)
+    return
+  }
+  
+  console.log('✅ Authentication successful, proceeding...')
+  
   // Fetch payment methods from API
   await fetchPaymentMethods()
   
-  // Debug localStorage data
-  debugLocalStorageData()
+  // Đảm bảo có maKH và fetch shipping info ngay lập tức
+  console.log('🔍 Ensuring maKH is available before fetching shipping info...')
+  let maKH = cart?.maKH || 
+              user.value?.customerInfo?.maKH || 
+              user.value?.maKH ||
+              user.value?.khachHang?.maKH
+  
+  if (!maKH) {
+    console.log('🔍 No maKH found, getting from API immediately...')
+    const realMaKH = await getMaKHFromAPI()
+    if (realMaKH) {
+      maKH = realMaKH
+      // Cập nhật user state
+      if (user.value) {
+        if (!user.value.customerInfo) user.value.customerInfo = {}
+        user.value.customerInfo.maKH = realMaKH
+        user.value.maKH = realMaKH
+        user.value.khachHang = { maKH: realMaKH }
+      }
+      console.log('✅ Got maKH from API in onMounted:', maKH)
+    }
+  }
+  
+  // Fetch shipping info from API với maKH đã có
+  await fetchShippingInfoFromAPI()
   
   // Kiểm tra xem có mua ngay từ ProductDetail không
   const invoiceData = localStorage.getItem('easymart-invoice')
@@ -1555,6 +2677,38 @@ onMounted(async () => {
     
     // Kiểm tra trạng thái auth trước khi pre-fill
     checkAuthStatus()
+    
+    // Load thông tin coupon từ invoice data nếu có
+    if (invoice.coupon) {
+      console.log('🎫 Loading coupon from invoice data:', invoice.coupon)
+      // Tạo coupon object từ invoice data
+      const invoiceCoupon = {
+        code: invoice.coupon.code,
+        description: invoice.coupon.description,
+        discountType: invoice.coupon.discountType,
+        discountValue: invoice.coupon.discountValue,
+        minOrderValue: 0,
+        maxDiscount: invoice.coupon.discountValue * 1000,
+        isActive: true
+      }
+      
+      // Áp dụng coupon vào form
+      appliedCoupon.value = invoiceCoupon
+      couponCode.value = invoice.coupon.code
+      
+      console.log('✅ Coupon applied from invoice:', appliedCoupon.value)
+    } else {
+      // Nếu không có coupon trong invoice, thử load từ localStorage
+      const lastOrder = localStorage.getItem('easymart-last-order')
+      if (lastOrder) {
+        const lastOrderData = JSON.parse(lastOrder)
+        if (lastOrderData.coupon && lastOrderData.coupon.code === invoice.maHD) {
+          console.log('🎫 Loading coupon from last order data:', lastOrderData.coupon)
+          appliedCoupon.value = lastOrderData.coupon
+          couponCode.value = lastOrderData.coupon.code
+        }
+      }
+    }
     
     // Pre-fill thông tin người dùng vào form
     await prefillUserInfo()

@@ -421,6 +421,7 @@ const checkout = async () => {
         tongTien: result.result?.tongTien,
         ngayLap: result.result?.ngayLap,
         trangThai: result.result?.trangThai
+        // Thông tin coupon sẽ được thêm trong Checkout.vue khi user áp dụng
       }
       
       localStorage.setItem('easymart-invoice', JSON.stringify(invoiceData))
