@@ -241,7 +241,7 @@
 import { computed, ref, onMounted, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useEasyMart } from '../composables/useEasyMart'
-import { containsIgnoreDiacritics } from '../utils/vietnamese'
+
 import CategoryService from '../utils/categoryService.js'
 
 // Router
@@ -285,8 +285,8 @@ const filteredCategories = computed(() => {
   // Search filter
   if (searchQuery.value.trim()) {
     filtered = filtered.filter(category => 
-      containsIgnoreDiacritics(category.name, searchQuery.value) ||
-      (category.description && containsIgnoreDiacritics(category.description, searchQuery.value))
+      category.name.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
+      (category.description && category.description.toLowerCase().includes(searchQuery.value.toLowerCase()))
     )
   }
 

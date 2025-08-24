@@ -94,7 +94,7 @@ EasyMart/
 │   ├── router/               # Vue Router configuration
 │   │   └── index.js                # Cấu hình routing và navigation guards
 │   ├── utils/                # Utility functions
-│   │   └── vietnamese.js           # Xử lý tìm kiếm tiếng Việt
+
 │   ├── assets/               # Assets và styles
 │   │   └── styles.css              # CSS tùy chỉnh
 │   ├── App.vue               # Root component
@@ -152,10 +152,9 @@ EasyMart/
 - **Kết quả tức thì**: Hiển thị kết quả ngay khi nhập >= 2 ký tự
 
 ### 🎯 Thuật toán tìm kiếm
-File `src/utils/vietnamese.js` chứa logic:
-- Chuẩn hóa chuỗi tiếng Việt (bỏ dấu)
-- So sánh chuỗi không phân biệt dấu
-- Tìm kiếm trong nhiều trường (tên, mô tả)
+- Tìm kiếm đơn giản với `toLowerCase()` và `includes()`
+- Hỗ trợ tìm kiếm trong tên và mô tả sản phẩm
+- Kết quả tức thì khi nhập >= 2 ký tự
 
 ## 🛒 Quản lý giỏ hàng
 
@@ -216,7 +215,7 @@ File `src/utils/vietnamese.js` chứa logic:
 - **Composables**: Reusable logic với reactive state
 - **localStorage**: Client-side persistence
 - **Responsive Design**: Mobile-first approach
-- **Vietnamese Search**: Diacritic-insensitive search
+- **Simple Search**: Basic text search functionality
 
 ## 🎨 Design System
 
@@ -410,9 +409,9 @@ npm update
 - Check storage quota: `navigator.storage.estimate()`
 
 #### 4. Search không hoạt động
-- Check `src/utils/vietnamese.js` file exists
-- Verify import trong `useEasyMart.js`
-- Test với console: `filterBySearchTerm(products, 'test', ['name'])`
+- Verify search logic trong `Search.vue` và `Categories.vue`
+- Check browser console cho errors
+- Test với console: `products.filter(p => p.name.toLowerCase().includes('test'))`
 
 ## 📈 Roadmap
 

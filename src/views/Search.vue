@@ -147,7 +147,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useEasyMart } from '../composables/useEasyMart'
-import { filterBySearchTerm } from '../utils/vietnamese'
+
 
 // Components
 // Đã xóa import Header và Footer
@@ -178,12 +178,12 @@ const sortBy = ref('relevance')
 const searchResultProducts = computed(() => {
   if (!currentSearchTerm.value || currentSearchTerm.value.length < 2) return []
   
-  // Use Vietnamese diacritic-insensitive search
-  return filterBySearchTerm(
-    products.value, 
-    currentSearchTerm.value, 
-    ['name', 'description']
-  )
+  // Simple search without Vietnamese diacritic handling
+  return products.value.filter(product => {
+    const searchTerm = currentSearchTerm.value.toLowerCase()
+    return product.name.toLowerCase().includes(searchTerm) ||
+           (product.description && product.description.toLowerCase().includes(searchTerm))
+  })
 })
 
 const sortedProducts = computed(() => {

@@ -6,7 +6,7 @@
  */
 
 // Configuration
-const TOKEN_STORAGE_TYPE = 'cookie' // 'localStorage', 'sessionStorage', or 'cookie'
+let TOKEN_STORAGE_TYPE = 'cookie' // 'localStorage', 'sessionStorage', or 'cookie'
 const TOKEN_KEY = 'easymart-token'
 const TOKEN_EXPIRY_DAYS = 1
 
