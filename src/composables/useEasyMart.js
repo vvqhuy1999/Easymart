@@ -1,14 +1,13 @@
 import { ref, computed, onMounted } from 'vue'
 import { useCart } from './useCart'
-import { filterBySearchTerm } from '../utils/vietnamese'
 import CategoryService from '../utils/categoryService.js'
 import { API_BASE_URL, API_ENDPOINTS } from '../config/api'
+import { quickSearch, basicSearch, advancedSearch } from '../utils/searchService'
 
 export function useEasyMart() {
   // Reactive state
   const products = ref([])
   const categories = ref([])
-  const coupons = ref([])
   const searchQuery = ref('')
   const notification = ref(null)
   const countdown = ref({ hours: 0, minutes: 0, seconds: 0 })
@@ -28,29 +27,9 @@ export function useEasyMart() {
     { id: 7, name: 'Hóa Phẩm & Tẩy Rửa', icon: 'fas fa-soap', color: 'success' }
   ]
 
-
-
-  const defaultCoupons = [
-    { id: 1, title: 'OMO Giảm 20%', description: 'Áp dụng cho tất cả sản phẩm OMO', code: 'OMO20' },
-    { id: 2, title: 'Nước giặt Ariel -15%', description: 'Đơn hàng từ 150k', code: 'ARIEL15' },
-    { id: 3, title: 'Snack Combo - Giảm 10%', description: 'Mua 2 tặng 1', code: 'SNACK10' },
-    { id: 4, title: 'Giảm 25k cho đơn hàng > 300k', description: 'Áp dụng tất cả sản phẩm', code: 'SAVE25K' }
-  ]
-
   // Computed properties
   const flashSaleProducts = computed(() => {
     return products.value.filter(product => product.isFlashSale)
-  })
-
-  const searchResults = computed(() => {
-    if (searchQuery.value.trim().length < 2) return []
-    
-    // Use Vietnamese diacritic-insensitive search
-    return filterBySearchTerm(
-      products.value, 
-      searchQuery.value, 
-      ['name', 'description']
-    ).slice(0, 5)
   })
 
   const getProductsByCategory = async (categoryId) => {
@@ -142,7 +121,6 @@ export function useEasyMart() {
 
   // Initialize data
   const initializeData = async () => {
-    coupons.value = defaultCoupons
     startCountdown()
     
     // Load categories and products from API
@@ -235,7 +213,6 @@ export function useEasyMart() {
     // State
     products,
     categories,
-    coupons,
     searchQuery,
     notification,
     countdown,
@@ -243,7 +220,6 @@ export function useEasyMart() {
     
     // Computed
     flashSaleProducts,
-    searchResults,
     
     // Functions
     getProductsByCategory,
@@ -254,6 +230,11 @@ export function useEasyMart() {
     saveCoupon,
     initializeData,
     loadCategories,
-    loadProducts
+    loadProducts,
+    
+    // Search functions
+    quickSearch,
+    basicSearch,
+    advancedSearch
   }
 }

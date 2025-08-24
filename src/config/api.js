@@ -121,7 +121,10 @@ export const API_ENDPOINTS = {
     BY_CATEGORY_ACTIVE: (categoryId) => `/api/sanpham/category/${categoryId}/active`,
     // New: products with inventory included (no auth required)
     WITH_STOCK_LIST: '/api/sanpham/with-tonkho',
-    BY_ID_WITH_STOCK: (id) => `/api/sanpham/${id}/with-tonkho`
+    BY_ID_WITH_STOCK: (id) => `/api/sanpham/${id}/with-tonkho`,
+    // Search APIs
+    SEARCH: '/api/sanpham/search',
+    SEARCH_ADVANCED: '/api/sanpham/search/advanced'
   },
   
   // Cart (GioHang) - Updated API endpoints theo hướng dẫn mới

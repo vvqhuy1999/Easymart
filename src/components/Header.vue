@@ -38,7 +38,6 @@
       <div class="flex-grow-1 mx-4">
         <SearchDropdown 
           :searchQuery="searchQuery"
-          :searchResults="searchResults"
           @update-search="$emit('update-search', $event)"
           @add-to-cart="$emit('add-to-cart', $event)"
         />
@@ -176,10 +175,6 @@ const props = defineProps({
   },
   searchQuery: {
     type: String,
-    required: true
-  },
-  searchResults: {
-    type: Array,
     required: true
   }
 })

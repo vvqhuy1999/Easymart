@@ -10,7 +10,6 @@
     <Header 
       :categories="categories"
       :searchQuery="searchQuery"
-      :searchResults="searchResults"
       @update-search="searchQuery = $event"
       @add-to-cart="addToCart"
     />
@@ -49,7 +48,6 @@ const {
   notification,
   categories,
   searchQuery,
-  searchResults,
   addToCart,
 } = useEasyMart()
 

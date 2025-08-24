@@ -33,14 +33,7 @@
           <i class="fas fa-times"></i>
         </button>
         
-        <button 
-          class="btn btn-primary search-btn" 
-          @click="performSearch"
-          type="button"
-          title="Tìm kiếm"
-        >
-          <i class="fas fa-search"></i>
-        </button>
+
       </div>
     </div>
     
@@ -59,8 +52,8 @@
             </h6>
             <div class="recent-searches">
               <button
-                v-for="search in recentSearches"
-                :key="search"
+                v-for="(search, index) in recentSearches"
+                :key="`recent-${index}`"
                 class="btn btn-sm btn-outline-secondary recent-search-item"
                 @click="selectRecentSearch(search)"
               >
@@ -75,8 +68,8 @@
             </h6>
             <div class="popular-keywords">
               <button
-                v-for="keyword in popularKeywords"
-                :key="keyword"
+                v-for="(keyword, index) in popularKeywords"
+                :key="`popular-${index}`"
                 class="btn btn-sm btn-outline-primary popular-keyword"
                 @click="selectKeyword(keyword)"
               >
@@ -88,8 +81,20 @@
 
         <!-- Search Results -->
         <div v-else class="search-results">
+          <!-- API Search Error -->
+          <div v-if="apiSearchError" class="search-error">
+            <div class="error-content">
+              <i class="fas fa-exclamation-triangle text-warning"></i>
+              <h6>Lỗi tìm kiếm</h6>
+              <p>{{ apiSearchError }}</p>
+              <button class="btn btn-sm btn-outline-primary" @click="handleSearch({ target: { value: searchQuery } })">
+                <i class="fas fa-redo me-2"></i>Thử lại
+              </button>
+            </div>
+          </div>
+
           <!-- No Results -->
-          <div v-if="searchResults.length === 0 && !isSearching" class="no-results">
+          <div v-else-if="displayedResults.length === 0 && !isSearching" class="no-results">
             <div class="no-results-content">
               <i class="fas fa-search-minus text-muted"></i>
               <h6>Không tìm thấy kết quả</h6>
@@ -105,7 +110,7 @@
             <div class="suggestion-items">
               <button
                 v-for="(suggestion, index) in searchSuggestions"
-                :key="suggestion"
+                :key="`suggestion-${index}`"
                 :class="['suggestion-item', { active: highlightedIndex === index }]"
                 @click="selectSuggestion(suggestion)"
               >
@@ -115,52 +120,51 @@
           </div>
 
           <!-- Product Results -->
-          <div v-if="searchResults.length > 0" class="product-results">
+          <div v-if="displayedResults.length > 0" class="product-results">
             <div class="results-header">
               <h6 class="section-title">
                 <i class="fas fa-box text-primary me-2"></i>
-                Sản phẩm ({{ searchResults.length }})
+                Sản phẩm ({{ displayedResults.length }})
               </h6>
-              <button 
-                class="btn btn-sm btn-outline-primary view-all-btn"
-                @click="viewAllResults"
-              >
-                Xem tất cả
-              </button>
             </div>
             
             <div class="product-list">
               <div 
                 v-for="(product, index) in displayedResults" 
-                :key="product.id"
+                :key="product.maSP || product.id || index"
                 :class="['product-item', { 
                   active: highlightedIndex === (searchSuggestions.length + index),
-                  'out-of-stock': product.stock === 0 || product.inStock === false
+                  'out-of-stock': (product.trongLuong || product.stock || 0) === 0 || product.inStock === false
                 }]"
                 @click="selectProduct(product)"
               >
                 <div class="product-image">
-                  <img :src="product.image" :alt="product.name" loading="lazy">
-                  <div v-if="product.discount" class="product-badge">
-                    -{{ product.discount }}%
+                  <img 
+                    :src="getProductImage(product)" 
+                    :alt="product.tenSP || product.name || 'Sản phẩm'" 
+                    loading="lazy"
+                    @error="handleImageError"
+                  >
+                  <div v-if="product.giamGia || product.discount" class="product-badge">
+                    -{{ product.giamGia || product.discount }}%
                   </div>
                 </div>
                 
                 <div class="product-info">
-                  <h6 class="product-name">{{ highlightSearchTerm(product.name) }}</h6>
+                  <h6 class="product-name">{{ product.tenSP || product.name || 'Tên sản phẩm' }}</h6>
                   <div class="product-price">
-                    <span v-if="product.originalPrice" class="original-price">
-                      {{ formatPrice(product.originalPrice) }}
+                    <span v-if="product.giaGoc || product.originalPrice" class="original-price">
+                      {{ formatCurrency(product.giaGoc || product.originalPrice) }}
                     </span>
-                    <span class="current-price">{{ formatPrice(product.price) }}</span>
+                    <span class="current-price">{{ formatCurrency(product.giaHienTai || product.giaBan || product.price || 0) }}</span>
                   </div>
                   
                   <div class="product-meta">
                     <div class="product-rating">
                       <i class="fas fa-star text-warning"></i>
-                      <span>{{ product.rating || 4.5 }}</span>
+                      <span>{{ product.danhGia || product.rating || 4.5 }}</span>
                     </div>
-                    <div v-if="product.stock === 0 || product.inStock === false" class="out-of-stock-label">
+                    <div v-if="(product.trongLuong || product.stock || 0) === 0 || product.inStock === false" class="out-of-stock-label">
                       Hết hàng
                     </div>
                   </div>
@@ -169,8 +173,8 @@
                 <div class="product-actions">
                   <button 
                     class="btn btn-sm btn-primary quick-add-btn"
-                    @click.stop="quickAddToCart(product.id)"
-                    :disabled="product.stock === 0 || product.inStock === false"
+                    @click.stop="quickAddToCart(product.maSP || product.id)"
+                    :disabled="(product.trongLuong || product.stock || 0) === 0 || product.inStock === false"
                     title="Thêm vào giỏ hàng"
                   >
                     <i class="fas fa-cart-plus"></i>
@@ -188,7 +192,7 @@
             <div class="category-list">
               <button
                 v-for="category in categoryResults"
-                :key="category.id"
+                :key="category.maLoaiSP || category.id"
                 class="category-item"
                 @click="selectCategory(category)"
               >
@@ -224,7 +228,8 @@
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { containsIgnoreDiacritics } from '../utils/vietnamese'
+import { quickSearch } from '../utils/searchService'
+import { API_BASE_URL } from '../config/api'
 
 // Router
 const router = useRouter()
@@ -233,10 +238,6 @@ const router = useRouter()
 const props = defineProps({
   searchQuery: {
     type: String,
-    required: true
-  },
-  searchResults: {
-    type: Array,
     required: true
   }
 })
@@ -253,6 +254,10 @@ const isSearching = ref(false)
 const highlightedIndex = ref(-1)
 const placeholderIndex = ref(0)
 const searchDebounceTimeout = ref(null)
+
+// API search results
+const apiSearchResults = ref([])
+const apiSearchError = ref(null)
 
 // Static data
 const placeholders = [
@@ -288,15 +293,16 @@ const currentPlaceholder = computed(() => {
 const searchSuggestions = computed(() => {
   if (props.searchQuery.length < 2) return []
   
-  // Use Vietnamese diacritic-insensitive search for suggestions
+  // Simple keyword matching for suggestions
   return popularKeywords.filter(keyword => 
-    containsIgnoreDiacritics(keyword, props.searchQuery) &&
+    keyword.toLowerCase().includes(props.searchQuery.toLowerCase()) &&
     keyword.toLowerCase() !== props.searchQuery.toLowerCase()
   ).slice(0, 3)
 })
 
 const displayedResults = computed(() => {
-  return props.searchResults.slice(0, 5)
+  // Sử dụng kết quả từ API search
+  return apiSearchResults.value.slice(0, 5)
 })
 
 const categoryResults = computed(() => {
@@ -308,7 +314,7 @@ const categoryResults = computed(() => {
     { id: 2, name: 'Thịt cá', icon: 'fas fa-fish', color: 'danger', productCount: 15 },
     { id: 3, name: 'Sữa', icon: 'fas fa-glass-whiskey', color: 'info', productCount: 8 }
   ].filter(cat => 
-    containsIgnoreDiacritics(cat.name, props.searchQuery)
+    cat.name.toLowerCase().includes(props.searchQuery.toLowerCase())
   )
 })
 
@@ -317,18 +323,32 @@ const isMobile = computed(() => {
 })
 
 // Methods
-const handleSearch = (event) => {
+const handleSearch = async (event) => {
   const query = event.target.value
   emit('update-search', query)
   
   if (query.length >= 2) {
     isSearching.value = true
+    apiSearchError.value = null
     
     // Debounce search
     clearTimeout(searchDebounceTimeout.value)
-    searchDebounceTimeout.value = setTimeout(() => {
-      isSearching.value = false
-    }, 500)
+    searchDebounceTimeout.value = setTimeout(async () => {
+      try {
+        // Sử dụng API search thay vì local search
+        const results = await quickSearch(query, 10)
+        apiSearchResults.value = results
+      } catch (error) {
+        console.error('API search error:', error)
+        apiSearchError.value = 'Lỗi tìm kiếm, vui lòng thử lại'
+        apiSearchResults.value = []
+      } finally {
+        isSearching.value = false
+      }
+    }, 300) // Giảm delay để tìm kiếm nhanh hơn
+  } else {
+    apiSearchResults.value = []
+    isSearching.value = false
   }
   
   showDropdown.value = true
@@ -355,20 +375,12 @@ const focusInput = () => {
 
 const clearSearch = () => {
   emit('update-search', '')
+  apiSearchResults.value = []
+  apiSearchError.value = null
   focusInput()
 }
 
-const performSearch = () => {
-  if (props.searchQuery.trim()) {
-    addToRecentSearches(props.searchQuery)
-    showDropdown.value = false
-    // Navigate to search page with query
-    router.push({ 
-      name: 'Search', 
-      query: { q: props.searchQuery.trim() } 
-    })
-  }
-}
+
 
 const addToRecentSearches = (query) => {
   const trimmedQuery = query.trim()
@@ -399,41 +411,75 @@ const selectSuggestion = (suggestion) => {
 const selectProduct = (product) => {
   addToRecentSearches(props.searchQuery)
   showDropdown.value = false
-  emit('view-product', product.id)
+  
+  // Chuyển trang trực tiếp đến chi tiết sản phẩm
+  const productId = product.maSP || product.id
+  if (productId) {
+    router.push({ 
+      name: 'ProductDetail', 
+      params: { id: productId } 
+    })
+  }
 }
 
 const selectCategory = (category) => {
   showDropdown.value = false
-  emit('view-category', category.id)
+  
+  // Chuyển trang trực tiếp đến danh mục
+  const categoryId = category.maLoaiSP || category.id
+  if (categoryId) {
+    router.push({ 
+      name: 'Category', 
+      params: { id: categoryId } 
+    })
+  }
 }
 
 const quickAddToCart = (productId) => {
   emit('add-to-cart', productId)
 }
 
-const viewAllResults = () => {
-  addToRecentSearches(props.searchQuery)
-  showDropdown.value = false
-  // Navigate to search results page
-  router.push({ 
-    name: 'Search', 
-    query: { q: props.searchQuery.trim() } 
-  })
-}
 
-// Fixed: Remove HTML injection to avoid mark tag display issues
-const highlightSearchTerm = (text) => {
-  if (!props.searchQuery || props.searchQuery.length < 2) return text
+
+// Format currency for Vietnamese Dong
+const formatCurrency = (price) => {
+  const numeric = Number(price)
+  if (!Number.isFinite(numeric) || numeric <= 0) return '0 ₫'
   
-  // Return plain text without HTML injection to avoid mark tag issues
-  return text
-}
-
-const formatPrice = (price) => {
   return new Intl.NumberFormat('vi-VN', {
     style: 'currency',
     currency: 'VND'
-  }).format(price)
+  }).format(numeric)
+}
+
+// Get product image from API data
+const getProductImage = (product) => {
+  // Try to get image from API response
+  if (product.hinhAnh) {
+    return `${API_BASE_URL}/api/upload/serve-image/${product.hinhAnh}`
+  }
+  
+  if (product.image) {
+    return `${API_BASE_URL}/api/upload/serve-image/${product.image}`
+  }
+  
+  // Try to construct image path from maSP
+  if (product.maSP) {
+    return `${API_BASE_URL}/api/upload/serve-image/${product.maSP}_main.jfif`
+  }
+  
+  if (product.id) {
+    return `${API_BASE_URL}/api/upload/serve-image/${product.id}_main.jfif`
+  }
+  
+  // Fallback to default image
+  return '/placeholder-product.jpg'
+}
+
+// Handle image loading error
+const handleImageError = (event) => {
+  // Use a data URL for placeholder image
+  event.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjYwIiBoZWlnaHQ9IjYwIiBmaWxsPSIjRjVGNUY1Ii8+CjxwYXRoIGQ9Ik0zMCAxNUMzMi43NjE0IDE1IDM1IDE3LjIzODYgMzUgMjBDMzUgMjIuNzYxNCAzMi43NjE0IDI1IDMwIDI1QzI3LjIzODYgMjUgMjUgMjIuNzYxNCAyNSAyMEMyNSAxNy4yMzg2IDI3LjIzODYgMTUgMzAgMTVaIiBmaWxsPSIjQ0NDIi8+CjxwYXRoIGQ9Ik0zMCAyN0MzMi43NjE0IDI3IDM1IDI5LjIzODYgMzUgMzJDMzUgMzQuNzYxNCAzMi43NjE0IDM3IDMwIDM3QzI3LjIzODYgMzcgMjUgMzQuNzYxNCAyNSAzMkMyNSAyOS4yMzg2IDI3LjIzODYgMjcgMzAgMjdaIiBmaWxsPSIjQ0NDIi8+Cjwvc3ZnPgo='
 }
 
 const handleKeydown = (event) => {
@@ -460,7 +506,7 @@ const handleKeydown = (event) => {
           selectProduct(displayedResults.value[productIndex])
         }
       } else {
-        performSearch()
+        // Enter without selection - do nothing
       }
       break
     case 'Escape':
@@ -500,6 +546,8 @@ onUnmounted(() => {
 watch(() => props.searchQuery, (newQuery) => {
   if (newQuery.length === 0) {
     isSearching.value = false
+    apiSearchResults.value = []
+    apiSearchError.value = null
   }
 })
 </script>
@@ -573,17 +621,7 @@ watch(() => props.searchQuery, (newQuery) => {
   color: #dc3545;
 }
 
-.search-btn {
-  border: none;
-  padding: 6px 12px;
-  border-radius: 20px;
-  font-size: 0.875rem;
-  transition: all 0.2s ease;
-}
 
-.search-btn:hover {
-  transform: scale(1.05);
-}
 
 /* Dropdown Styles */
 .search-dropdown {
@@ -638,6 +676,28 @@ watch(() => props.searchQuery, (newQuery) => {
 .search-results {
   max-height: 450px;
   overflow-y: auto;
+}
+
+/* Search Error */
+.search-error {
+  padding: 40px 20px;
+  text-align: center;
+}
+
+.error-content i {
+  font-size: 3rem;
+  margin-bottom: 16px;
+}
+
+.error-content h6 {
+  color: #dc3545;
+  margin-bottom: 8px;
+}
+
+.error-content p {
+  color: #6c757d;
+  font-size: 0.875rem;
+  margin-bottom: 16px;
 }
 
 .no-results {
@@ -697,15 +757,9 @@ watch(() => props.searchQuery, (newQuery) => {
 
 .results-header {
   display: flex;
-  justify-content: between;
+  justify-content: flex-start;
   align-items: center;
   margin-bottom: 12px;
-}
-
-.view-all-btn {
-  font-size: 0.875rem;
-  padding: 4px 12px;
-  border-radius: 20px;
 }
 
 .product-list {
