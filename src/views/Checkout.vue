@@ -1833,19 +1833,7 @@ const processOrder = async () => {
       console.log('🔍 Order invoiceId:', order.invoiceId)
     }
     
-    // 🧹 Clear cart after successful order creation
-    console.log('🧹 Clearing cart after successful checkout...')
-    
-    try {
-      // Clear backend cart using useCart composable
-      await clearCart()
-      console.log('✅ Backend cart cleared successfully')
-    } catch (clearError) {
-      console.warn('⚠️ Failed to clear backend cart:', clearError)
-      // Không block checkout flow nếu clear cart fail
-    }
-    
-    // Clear selected items from localStorage
+    // Clear selected items from localStorage (không xóa toàn bộ giỏ hàng)
     localStorage.removeItem('easymart-selected-items')
     console.log('🧹 localStorage cleared')
     
